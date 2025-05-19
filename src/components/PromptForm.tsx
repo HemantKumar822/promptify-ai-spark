@@ -129,13 +129,13 @@ export function PromptForm() {
   };
   
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto space-y-6">
+    <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto space-y-4 sm:space-y-6 px-2 sm:px-0">
       <div className="space-y-2">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
           <label htmlFor="inputPrompt" className="text-sm font-medium">
             Your Original Prompt {isImageMode && <span className="text-primary text-xs">(Image Mode)</span>}
           </label>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <SavedPrompts onSelectPrompt={setInputPrompt} />
             <PromptHistory onSelectPrompt={setInputPrompt} />
             <RandomPrompt onSelectPrompt={setInputPrompt} isImageMode={isImageMode} />
@@ -147,7 +147,7 @@ export function PromptForm() {
             placeholder={isImageMode ? "Enter your image prompt here..." : "Enter your prompt here..."}
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
-            className="resize-none min-h-[180px] prompt-shadow focus-visible:ring-2 focus-visible:ring-primary/50 pr-10"
+            className="resize-none min-h-[140px] sm:min-h-[180px] prompt-shadow focus-visible:ring-2 focus-visible:ring-primary/50 pr-10 text-sm sm:text-base"
           />
           <Tooltip>
             <TooltipTrigger asChild>
@@ -176,7 +176,7 @@ export function PromptForm() {
         <Button
           type="submit"
           className={cn(
-            "px-8 py-6 text-base promptify-gradient hover:opacity-90 transition-opacity",
+            "px-6 sm:px-8 py-5 sm:py-6 text-sm sm:text-base promptify-gradient hover:opacity-90 transition-opacity w-full sm:w-auto",
             isLoading ? "" : "animate-pulse-subtle",
             isImageMode && "from-purple-600 to-indigo-600"
           )}
@@ -184,7 +184,7 @@ export function PromptForm() {
         >
           {isLoading ? (
             <span className="flex items-center gap-2">
-              <Loader2 size={20} className="animate-spin" />
+              <Loader2 size={18} className="animate-spin" />
               Enhancing...
             </span>
           ) : (
@@ -198,12 +198,12 @@ export function PromptForm() {
       </div>
       
       <div className="space-y-2">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
           <label htmlFor="enhancedPrompt" className="text-sm font-medium">
             Enhanced Prompt {isImageMode && <span className="text-primary text-xs">(Image Optimized)</span>}
           </label>
           {enhancedPrompt && (
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               <CopyButton text={enhancedPrompt} />
               <SharePrompt prompt={enhancedPrompt} isImagePrompt={isImageMode} />
               <Tooltip>
@@ -268,10 +268,10 @@ export function PromptForm() {
             placeholder="Your enhanced prompt will appear here..."
             value={enhancedPrompt}
             readOnly
-            className="resize-none min-h-[180px] bg-accent prompt-shadow"
+            className="resize-none min-h-[140px] sm:min-h-[180px] bg-accent prompt-shadow text-sm sm:text-base"
           />
         ) : (
-          <div className="resize-none min-h-[180px] bg-accent prompt-shadow rounded-md p-3 overflow-auto">
+          <div className="resize-none min-h-[140px] sm:min-h-[180px] bg-accent prompt-shadow rounded-md p-3 overflow-auto">
             <MarkdownRenderer content={enhancedPrompt} />
           </div>
         )}

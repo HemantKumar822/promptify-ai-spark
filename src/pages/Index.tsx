@@ -10,20 +10,20 @@ const Index = () => {
   return (
     <ThemeProvider defaultTheme="light">
       <div className="min-h-screen flex flex-col">
-        <header className="py-4 px-6 border-b">
+        <header className="py-3 sm:py-4 px-4 sm:px-6 border-b">
           <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
             <Logo />
             <ThemeToggle />
           </div>
         </header>
         
-        <main className="flex-1 py-8 px-6">
-          <div className="max-w-4xl mx-auto w-full flex flex-col gap-6">
-            <div className="text-center space-y-3 mb-8">
-              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl animate-fade-in">
+        <main className="flex-1 py-6 sm:py-8 px-4 sm:px-6">
+          <div className="max-w-4xl mx-auto w-full flex flex-col gap-4 sm:gap-6">
+            <div className="text-center space-y-3 mb-4 sm:mb-8">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight md:text-4xl animate-fade-in">
                 Enhance Your Prompts
               </h1>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto animate-fade-in">
+              <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto animate-fade-in">
                 Transform your basic prompts into professional-grade instructions for any AI with a single click.
               </p>
             </div>

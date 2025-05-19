@@ -22,7 +22,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
   if (!content) return null;
   
   return (
-    <div className={cn("markdown-content prose prose-sm dark:prose-invert max-w-none", className)}>
+    <div className={cn("markdown-content prose prose-sm dark:prose-invert max-w-none break-words", className)}>
       <ReactMarkdown 
         remarkPlugins={[remarkGfm]} 
         rehypePlugins={[rehypeRaw]}
@@ -41,13 +41,27 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
             <code 
               className={cn(
                 "font-mono text-sm", 
-                inline ? "bg-muted px-1 py-0.5 rounded" : "block bg-muted p-2 rounded", 
+                inline ? "bg-muted px-1 py-0.5 rounded" : "block bg-muted p-2 rounded overflow-x-auto", 
                 className
               )} 
               {...props}
             >
               {children}
             </code>
+          ),
+          // Improve paragraph rendering
+          p: ({ node, ...props }) => (
+            <p className="my-2 break-words" {...props} />
+          ),
+          // Make headers more mobile-friendly
+          h1: ({ node, ...props }) => (
+            <h1 className="text-xl font-bold my-3 break-words" {...props} />
+          ),
+          h2: ({ node, ...props }) => (
+            <h2 className="text-lg font-bold my-2 break-words" {...props} />
+          ),
+          h3: ({ node, ...props }) => (
+            <h3 className="text-base font-bold my-2 break-words" {...props} />
           )
         }}
       >
