@@ -10,6 +10,13 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
+// Add proper types for the ReactMarkdown components
+type CodeProps = React.ClassAttributes<HTMLElement> & 
+  React.HTMLAttributes<HTMLElement> & {
+    inline?: boolean;
+    className?: string;
+  };
+
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
   if (!content) return null;
   
@@ -28,8 +35,8 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
               className="text-primary hover:underline"
             />
           ),
-          // Ensure code blocks render properly
-          code: ({ node, inline, className, children, ...props }) => (
+          // Ensure code blocks render properly with proper typing
+          code: ({ node, inline, className, children, ...props }: CodeProps) => (
             <code 
               className={cn(
                 "font-mono text-sm", 
