@@ -1,13 +1,42 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React from 'react';
+import { ThemeProvider } from '@/lib/theme-provider';
+import { Logo } from '@/components/Logo';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { PromptForm } from '@/components/PromptForm';
+import { Footer } from '@/components/Footer';
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+    <ThemeProvider defaultTheme="light">
+      <div className="min-h-screen flex flex-col">
+        <header className="py-4 px-6 border-b">
+          <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
+            <Logo />
+            <ThemeToggle />
+          </div>
+        </header>
+        
+        <main className="flex-1 py-8 px-6">
+          <div className="max-w-4xl mx-auto w-full flex flex-col gap-6">
+            <div className="text-center space-y-3 mb-8">
+              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl animate-fade-in">
+                Enhance Your Prompts
+              </h1>
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto animate-fade-in">
+                Transform your basic prompts into professional-grade instructions for any AI with a single click.
+              </p>
+            </div>
+            
+            <div className="animate-scale-in">
+              <PromptForm />
+            </div>
+          </div>
+        </main>
+        
+        <Footer />
       </div>
-    </div>
+    </ThemeProvider>
   );
 };
 
