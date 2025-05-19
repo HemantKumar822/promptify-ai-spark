@@ -106,8 +106,29 @@ export default {
 				'pulse-subtle': 'pulse-subtle 2s ease-in-out infinite',
 				'scale-in': 'scale-in 0.2s ease-out',
 				'fade-in': 'fade-in 0.3s ease-out'
-			}
+			},
+			typography: {
+				DEFAULT: {
+					css: {
+						maxWidth: 'none',
+						color: 'var(--foreground)',
+						a: {
+							color: 'hsl(var(--primary))',
+							textDecoration: 'underline',
+						},
+						p: {
+							marginTop: '1em',
+							marginBottom: '1em',
+						},
+						'blockquote p:first-of-type::before': { content: 'none' },
+						'blockquote p:first-of-type::after': { content: 'none' },
+					},
+				},
+			},
 		}
 	},
-	plugins: [require("tailwindcss-animate")],
+	plugins: [
+		require("tailwindcss-animate"),
+		require('@tailwindcss/typography'),
+	],
 } satisfies Config;

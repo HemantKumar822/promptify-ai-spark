@@ -14,13 +14,14 @@ export const enhancePrompt = async (prompt: string, isImageMode: boolean = false
   const loadingToast = toast.loading("Enhancing your prompt...");
   
   try {
-    // For MVP, use backend call for image prompts but simulation for text prompts
+    // For image prompts, always use OpenRouter API
     if (isImageMode) {
-      const enhancedPrompt = await callOpenRouterAPI(prompt);
+      const enhancedPrompt = await callOpenRouterAPI(prompt, true);
       toast.dismiss(loadingToast);
       toast.success("Image prompt enhanced successfully!");
       return { enhancedPrompt };
     } else {
+      // For normal text prompts
       // Simulate API latency for regular text prompts (temporary)
       await new Promise(resolve => setTimeout(resolve, 1500));
       const enhancedPrompt = simulateEnhancement(prompt);
@@ -41,8 +42,12 @@ export const enhancePrompt = async (prompt: string, isImageMode: boolean = false
 };
 
 // Call to OpenRouter API for image prompts
-async function callOpenRouterAPI(prompt: string): Promise<string> {
+async function callOpenRouterAPI(prompt: string, isImagePrompt: boolean = false): Promise<string> {
   try {
+    const systemMessage = isImagePrompt
+      ? "You are an expert prompt engineer specializing in creating vivid, detailed prompts for AI image generation models like Midjourney, DALL-E, and Stable Diffusion. Transform user inputs into structured, detailed image prompts with style descriptors, lighting, composition, and other relevant details. Don't include ANY markdown formatting, headings, quotes, or commentary. Only return the enhanced prompt as plain text, ready to be pasted directly into an image generation tool."
+      : "You are an expert prompt engineer specializing in enhancing user prompts for language models. Transform user inputs into well-structured, detailed prompts that will yield the best possible results. Format your response using markdown for clarity when helpful, but keep it concise and focused.";
+
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -56,11 +61,13 @@ async function callOpenRouterAPI(prompt: string): Promise<string> {
         messages: [
           {
             role: "system",
-            content: "You are an expert prompt engineer specializing in creating vivid, detailed prompts for AI image generation models like Midjourney, DALL-E, and Stable Diffusion. Transform user inputs into structured, detailed image prompts with style descriptors, lighting, composition, and other relevant details."
+            content: systemMessage
           },
           {
             role: "user",
-            content: `Please enhance this image generation prompt, making it detailed and optimized for AI image generators: "${prompt}"`
+            content: isImagePrompt
+              ? `Please enhance this image generation prompt, making it detailed and optimized for AI image generators. Return ONLY the enhanced prompt with no commentary: "${prompt}"`
+              : `Please enhance this prompt for better AI responses: "${prompt}"`
           }
         ]
       })
@@ -120,9 +127,9 @@ function simulateEnhancement(originalPrompt: string): string {
 function enhanceCodingPrompt(prompt: string): string {
   // Add coding specific enhancements
   let enhanced = "I need your help with the following coding task.\n\n";
-  enhanced += "Context: I'm working on a software development project and need assistance with code.\n\n";
-  enhanced += "Task: " + prompt + "\n\n";
-  enhanced += "Requirements:\n";
+  enhanced += "**Context**: I'm working on a software development project and need assistance with code.\n\n";
+  enhanced += "**Task**: " + prompt + "\n\n";
+  enhanced += "**Requirements**:\n";
   enhanced += "- Provide clean, efficient, and well-commented code\n";
   enhanced += "- Explain your approach and any assumptions made\n";
   enhanced += "- Include examples of how to use the code\n";
@@ -135,8 +142,8 @@ function enhanceCodingPrompt(prompt: string): string {
 function enhanceCreativePrompt(prompt: string): string {
   // Add creative specific enhancements
   let enhanced = "I'm looking for creative assistance with the following:\n\n";
-  enhanced += prompt + "\n\n";
-  enhanced += "Please consider the following in your response:\n";
+  enhanced += "**Request**: " + prompt + "\n\n";
+  enhanced += "**Please consider**:\n";
   enhanced += "- Provide rich, detailed, and imaginative content\n";
   enhanced += "- Consider diverse perspectives and approaches\n";
   enhanced += "- Include sensory details and vivid language where appropriate\n";
@@ -149,8 +156,8 @@ function enhanceCreativePrompt(prompt: string): string {
 function enhanceGeneralPrompt(prompt: string): string {
   // Add general improvements
   let enhanced = "I would like your expert assistance on the following topic:\n\n";
-  enhanced += prompt + "\n\n";
-  enhanced += "When responding, please:\n";
+  enhanced += "**Topic**: " + prompt + "\n\n";
+  enhanced += "**When responding, please**:\n";
   enhanced += "- Provide comprehensive, well-structured information\n";
   enhanced += "- Include relevant examples or case studies if applicable\n";
   enhanced += "- Consider different perspectives or approaches\n";
