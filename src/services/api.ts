@@ -6,25 +6,28 @@ interface EnhancePromptResponse {
   error?: string;
 }
 
-// This is a temporary simulated API call
-// In a real implementation, this would call OpenRouter API
-export const enhancePrompt = async (prompt: string): Promise<EnhancePromptResponse> => {
+const OPENROUTER_API_KEY = "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";
+
+// Enhanced API call for both text and image prompts
+export const enhancePrompt = async (prompt: string, isImageMode: boolean = false): Promise<EnhancePromptResponse> => {
   // Display a loading message
   const loadingToast = toast.loading("Enhancing your prompt...");
   
   try {
-    // Simulate API latency
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Simple prompt enhancing logic for MVP
-    // This would be replaced with the actual API call
-    const enhancedPrompt = simulateEnhancement(prompt);
-    
-    // Clear loading toast
-    toast.dismiss(loadingToast);
-    toast.success("Prompt enhanced successfully!");
-    
-    return { enhancedPrompt };
+    // For MVP, use backend call for image prompts but simulation for text prompts
+    if (isImageMode) {
+      const enhancedPrompt = await callOpenRouterAPI(prompt);
+      toast.dismiss(loadingToast);
+      toast.success("Image prompt enhanced successfully!");
+      return { enhancedPrompt };
+    } else {
+      // Simulate API latency for regular text prompts (temporary)
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      const enhancedPrompt = simulateEnhancement(prompt);
+      toast.dismiss(loadingToast);
+      toast.success("Prompt enhanced successfully!");
+      return { enhancedPrompt };
+    }
   } catch (error) {
     // Handle errors
     toast.dismiss(loadingToast);
@@ -37,8 +40,47 @@ export const enhancePrompt = async (prompt: string): Promise<EnhancePromptRespon
   }
 };
 
-// Simple enhancement logic for demonstration
-// This simulates what the AI would do
+// Call to OpenRouter API for image prompts
+async function callOpenRouterAPI(prompt: string): Promise<string> {
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "HTTP-Referer": window.location.origin,
+        "X-Title": "Promptify"
+      },
+      body: JSON.stringify({
+        model: "deepseek/deepseek-chat-v3-0324:free",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert prompt engineer specializing in creating vivid, detailed prompts for AI image generation models like Midjourney, DALL-E, and Stable Diffusion. Transform user inputs into structured, detailed image prompts with style descriptors, lighting, composition, and other relevant details."
+          },
+          {
+            role: "user",
+            content: `Please enhance this image generation prompt, making it detailed and optimized for AI image generators: "${prompt}"`
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || "API request failed");
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+  } catch (error) {
+    console.error("Error calling OpenRouter API:", error);
+    throw error;
+  }
+}
+
+// Simple enhancement logic for demonstration (text prompts)
+// This simulates what the AI would do for regular text prompts
 function simulateEnhancement(originalPrompt: string): string {
   if (!originalPrompt.trim()) {
     return "";
