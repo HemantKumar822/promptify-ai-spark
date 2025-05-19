@@ -99,7 +99,11 @@ export function PromptForm() {
     );
   };
   
-  const savePrompt = () => {
+  const savePrompt = (e: React.MouseEvent) => {
+    // Prevent event propagation to avoid any form submission
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (!enhancedPrompt) return;
     
     const newSavedPrompt: SavedPrompt = {
@@ -232,7 +236,11 @@ export function PromptForm() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                      onClick={() => setIsUsingMarkdown(!isUsingMarkdown)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsUsingMarkdown(!isUsingMarkdown);
+                      }}
                     >
                       <span className={cn(
                         "font-mono text-xs font-bold",

@@ -11,11 +11,37 @@ interface MarkdownRendererProps {
 }
 
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
+  if (!content) return null;
+  
   return (
     <div className={cn("markdown-content prose prose-sm dark:prose-invert max-w-none", className)}>
       <ReactMarkdown 
         remarkPlugins={[remarkGfm]} 
         rehypePlugins={[rehypeRaw]}
+        components={{
+          // Enhance link components to open in new tab
+          a: ({ node, ...props }) => (
+            <a 
+              {...props} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            />
+          ),
+          // Ensure code blocks render properly
+          code: ({ node, inline, className, children, ...props }) => (
+            <code 
+              className={cn(
+                "font-mono text-sm", 
+                inline ? "bg-muted px-1 py-0.5 rounded" : "block bg-muted p-2 rounded", 
+                className
+              )} 
+              {...props}
+            >
+              {children}
+            </code>
+          )
+        }}
       >
         {content}
       </ReactMarkdown>

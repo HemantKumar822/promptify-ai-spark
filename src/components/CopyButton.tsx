@@ -13,7 +13,10 @@ interface CopyButtonProps {
 export function CopyButton({ text, className }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = async () => {
+  const handleCopy = async (e: React.MouseEvent) => {
+    // Prevent event propagation to avoid triggering parent elements' events
+    e.stopPropagation();
+    
     if (!text) return;
     
     try {
@@ -35,6 +38,7 @@ export function CopyButton({ text, className }: CopyButtonProps) {
       className={cn("h-8 w-8 text-muted-foreground hover:text-foreground", className)}
       onClick={handleCopy}
       disabled={!text}
+      type="button" // Explicitly set to button to prevent form submission
     >
       {copied ? (
         <Check className="h-4 w-4" />

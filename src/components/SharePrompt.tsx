@@ -8,7 +8,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from '@/components/ui/input';
 import { CopyButton } from './CopyButton';
@@ -26,7 +25,12 @@ export function SharePrompt({ prompt, isImagePrompt }: SharePromptProps) {
     return `${modeText} created with Promptify:\n\n${prompt}`;
   };
 
-  const handleShare = async () => {
+  const handleShare = async (e: React.MouseEvent) => {
+    // Prevent event propagation to avoid triggering parent events
+    e.stopPropagation();
+    
+    if (!prompt) return;
+    
     if (navigator.share) {
       try {
         await navigator.share({
@@ -35,8 +39,10 @@ export function SharePrompt({ prompt, isImagePrompt }: SharePromptProps) {
         });
         toast.success("Shared successfully!");
       } catch (error) {
-        // User probably canceled the share operation
-        console.log("Share operation canceled or failed");
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.log("Share operation failed:", error);
+          toast.error("Failed to share. Please try again.");
+        }
       }
     } else {
       // Fallback for browsers that don't support the Web Share API
@@ -53,6 +59,7 @@ export function SharePrompt({ prompt, isImagePrompt }: SharePromptProps) {
         size="icon" 
         className="h-8 w-8 text-muted-foreground hover:text-foreground"
         onClick={handleShare}
+        type="button" // Explicitly set to button to prevent form submission
       >
         <Share className="h-4 w-4" />
         <span className="sr-only">Share prompt</span>
