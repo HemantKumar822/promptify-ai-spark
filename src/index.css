@@ -131,19 +131,48 @@
   /* Improve spacing for mobile views */
   .dropdown-menu-compact {
     max-width: 90vw;
+    width: auto !important;
+    min-width: 180px;
     overflow-x: hidden;
   }
   
   /* Better touch targets for mobile */
   button, 
   .dropdown-trigger, 
-  select {
-    @apply min-h-[36px] min-w-[36px];
+  select,
+  .radix-dropdown-trigger {
+    @apply min-h-[40px] min-w-[40px];
   }
   
   /* Make sure focus states are visible for mobile touch */
   :focus-visible {
     @apply outline-offset-2;
+  }
+  
+  /* Improved mobile text sizing */
+  h1 {
+    @apply text-xl;
+  }
+  
+  p {
+    @apply text-sm;
+  }
+  
+  /* Enhanced mobile form elements */
+  textarea, 
+  input {
+    @apply text-sm;
+    line-height: 1.5;
+  }
+  
+  /* Better button spacing on mobile */
+  .button-group {
+    @apply flex flex-wrap gap-1;
+  }
+  
+  /* Enhanced mobile padding */
+  .mobile-pad {
+    @apply px-3 py-2;
   }
 }
 
@@ -247,5 +276,29 @@
   
   .markdown-content pre {
     @apply text-[0.8rem];
+  }
+  
+  /* Enhanced mobile UI elements */
+  .mobile-row {
+    @apply flex flex-row flex-wrap gap-1 justify-center;
+  }
+  
+  .mobile-stack {
+    @apply flex flex-col gap-2;
+  }
+  
+  /* Improved mobile tooltips */
+  .mobile-tooltip {
+    @apply absolute bottom-full mb-2 bg-popover text-popover-foreground text-xs py-1 px-2 rounded whitespace-nowrap;
+  }
+  
+  /* Better tap targets */
+  .mobile-tap-target {
+    @apply p-2 min-h-[44px] min-w-[44px];
+  }
+  
+  /* Enhance textarea/input visibility */
+  textarea, input {
+    @apply text-base;
   }
 }

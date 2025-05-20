@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 type EnhancementMode = "professional" | "creative" | "academic" | "technical" | "marketing" | "storytelling";
 
@@ -19,6 +20,8 @@ interface StyleSelectorProps {
 }
 
 export function StyleSelector({ value, onChange, disabled = false }: StyleSelectorProps) {
+  const isMobile = useIsMobile();
+  
   const styles: { 
     value: EnhancementMode; 
     label: string; 
@@ -76,6 +79,7 @@ export function StyleSelector({ value, onChange, disabled = false }: StyleSelect
               disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-accent text-muted-foreground hover:text-foreground",
               value && !disabled && "text-primary"
             )}
+            aria-label={`Select style: ${currentStyle.label}`}
           >
             <div className="relative">
               {currentStyle.icon}
@@ -88,16 +92,16 @@ export function StyleSelector({ value, onChange, disabled = false }: StyleSelect
             </div>
           </DropdownMenuTrigger>
         </TooltipTrigger>
-        <TooltipContent side="top">
+        <TooltipContent side={isMobile ? "bottom" : "top"} align={isMobile ? "center" : "end"}>
           <p>{currentStyle.label} style</p>
         </TooltipContent>
       </Tooltip>
       
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align={isMobile ? "center" : "end"} className="w-48 dropdown-menu-compact">
         {styles.map((style) => (
           <DropdownMenuItem
             key={style.value}
-            className="flex items-center gap-2 capitalize"
+            className="flex items-center gap-2 capitalize py-2"
             onClick={() => onChange(style.value)}
           >
             <div className="flex items-center gap-2">
