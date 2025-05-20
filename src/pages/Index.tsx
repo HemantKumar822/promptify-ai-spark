@@ -19,7 +19,7 @@ const Index = () => {
         
         <main className="flex-1 py-6 sm:py-8 px-4 sm:px-6">
           <div className="max-w-4xl mx-auto w-full flex flex-col gap-4 sm:gap-6">
-            <div className="text-center space-y-3 mb-4 sm:mb-8">
+            <div className="text-center space-y-2 sm:space-y-3 mb-3 sm:mb-6">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight md:text-4xl animate-fade-in">
                 AI Prompt Engineer
               </h1>
@@ -27,7 +27,7 @@ const Index = () => {
                 Transform basic prompts into powerful, context-rich instructions optimized for any AI model or image generator.
               </p>
               <div className="pt-1 max-w-2xl mx-auto">
-                <p className="text-sm text-muted-foreground animate-fade-in-delayed">
+                <p className="text-xs sm:text-sm text-muted-foreground animate-fade-in-delayed">
                   Choose from professional, creative, academic, technical, marketing, or storytelling styles for text prompts,
                   or use our specialized image prompt mode for stunning AI art generation.
                 </p>
