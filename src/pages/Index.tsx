@@ -21,11 +21,17 @@ const Index = () => {
           <div className="max-w-4xl mx-auto w-full flex flex-col gap-4 sm:gap-6">
             <div className="text-center space-y-3 mb-4 sm:mb-8">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight md:text-4xl animate-fade-in">
-                Enhance Your Prompts
+                AI Prompt Engineer
               </h1>
               <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto animate-fade-in">
-                Transform your basic prompts into professional-grade instructions for any AI with a single click.
+                Transform basic prompts into powerful, context-rich instructions optimized for any AI model or image generator.
               </p>
+              <div className="pt-1 max-w-2xl mx-auto">
+                <p className="text-sm text-muted-foreground animate-fade-in-delayed">
+                  Choose from professional, creative, academic, technical, marketing, or storytelling styles for text prompts,
+                  or use our specialized image prompt mode for stunning AI art generation.
+                </p>
+              </div>
             </div>
             
             <div className="animate-scale-in">

@@ -8,27 +8,94 @@ interface EnhancePromptResponse {
 
 const OPENROUTER_API_KEY = "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";
 
+// System prompts for different enhancement modes
+const TEXT_SYSTEM_PROMPT = `You are an expert Prompt Enhancer AI trained to rewrite and upgrade user prompts to make them more powerful, clear, and effective for use with large language models like ChatGPT, Claude, or Gemini.
+
+Your job is to enhance the user's raw prompt while:
+- Improving **clarity**, **intent**, and **structure**.
+- Adapting to the **desired tone or style** provided (e.g., creative, professional, educational, marketing, storytelling, etc.).
+- Maintaining the **original goal and purpose** of the user's prompt.
+- Making the prompt more **specific**, **engaging**, and **outcome-oriented**.
+
+You do NOT answer the prompt or solve it. Your task is only to transform the prompt to a better version.
+
+---
+
+Here is the enhancement process:
+1. Understand the **user's raw prompt** and its intent.
+2. Identify the selected **enhancement style**.
+3. Rewrite the prompt by:
+   - Making it clear, focused, and instructive.
+   - Adjusting tone/voice to match the selected mode.
+   - Adding useful details to help the AI model produce better responses.
+
+---
+
+Output Format:
+Return only the **enhanced prompt**, clearly and concisely, without extra commentary.
+
+---
+
+Examples:
+
+Mode: Creative  
+Raw: "Write a story about time travel."  
+Enhanced: "Write an imaginative and emotionally compelling story about a teenager who discovers a mysterious watch that allows them to navigate different moments in time."
+
+---
+
+Mode: Professional  
+Raw: "Explain AI to my team."  
+Enhanced: "Provide a clear and concise explanation of Artificial Intelligence, tailored for a non-technical team, including its practical applications and potential benefits for business."
+
+---
+
+Only return the improved prompt. Do not explain your changes.`;
+
+const IMAGE_SYSTEM_PROMPT = `You are a specialized Prompt Enhancer for AI image generation models such as Midjourney, DALL·E, and Stable Diffusion.
+
+Your task is to take a rough or vague user prompt and enhance it into a **well-structured, detailed visual description** that yields better image generation results.
+
+You MUST:
+- Add **visual details** (colors, lighting, textures, angles).
+- Use **composition techniques** (e.g., depth of field, symmetry, focus).
+- Specify **style or medium** (e.g., digital art, anime, watercolor, 3D render).
+- Avoid abstract vagueness unless it's intentional.
+
+You may also:
+- Add camera specs (e.g., 35mm lens, f/1.8) for realism.
+- Use mood and setting cues (e.g., foggy morning, cyberpunk city, soft sunset).
+
+---
+
+Process:
+1. Understand the user's idea or theme.
+2. Identify or infer the desired style/genre.
+3. Rewrite the prompt as a descriptive visual scene.
+
+---
+
+Output Format:
+Return only the enhanced image prompt — no commentary, no explanation.
+
+---
+
+Example:
+
+Raw: "A futuristic city"  
+Enhanced: "A futuristic cyberpunk cityscape at night, illuminated by neon lights, with flying cars in the sky, reflective wet streets, dense fog, and glowing skyscrapers — digital art, wide-angle perspective, ultra-detailed."`;
+
 // Enhanced API call for both text and image prompts
-export const enhancePrompt = async (prompt: string, isImageMode: boolean = false): Promise<EnhancePromptResponse> => {
+export const enhancePrompt = async (prompt: string, isImageMode: boolean = false, enhancementMode: string = "professional"): Promise<EnhancePromptResponse> => {
   // Display a loading message
-  const loadingToast = toast.loading("Enhancing your prompt...");
+  const loadingToast = toast.loading(`Enhancing your ${isImageMode ? "image" : "text"} prompt...`);
   
   try {
-    // For image prompts, always use OpenRouter API
-    if (isImageMode) {
-      const enhancedPrompt = await callOpenRouterAPI(prompt, true);
-      toast.dismiss(loadingToast);
-      toast.success("Image prompt enhanced successfully!");
-      return { enhancedPrompt };
-    } else {
-      // For normal text prompts
-      // Simulate API latency for regular text prompts (temporary)
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      const enhancedPrompt = simulateEnhancement(prompt);
-      toast.dismiss(loadingToast);
-      toast.success("Prompt enhanced successfully!");
-      return { enhancedPrompt };
-    }
+    // Use OpenRouter API for all prompt enhancements
+    const enhancedPrompt = await callOpenRouterAPI(prompt, isImageMode, enhancementMode);
+    toast.dismiss(loadingToast);
+    toast.success(`${isImageMode ? "Image" : "Text"} prompt enhanced successfully!`);
+    return { enhancedPrompt };
   } catch (error) {
     // Handle errors
     toast.dismiss(loadingToast);
@@ -41,13 +108,18 @@ export const enhancePrompt = async (prompt: string, isImageMode: boolean = false
   }
 };
 
-// Call to OpenRouter API for image prompts
-async function callOpenRouterAPI(prompt: string, isImagePrompt: boolean = false): Promise<string> {
+// Call to OpenRouter API for all prompt enhancements
+async function callOpenRouterAPI(prompt: string, isImagePrompt: boolean = false, enhancementMode: string = "professional"): Promise<string> {
   try {
-    const systemMessage = isImagePrompt
-      ? "You are an expert prompt engineer specializing in creating vivid, detailed prompts for AI image generation models like Midjourney, DALL-E, and Stable Diffusion. Transform user inputs into structured, detailed image prompts with style descriptors, lighting, composition, and other relevant details. Don't include ANY markdown formatting, headings, quotes, or commentary. Only return the enhanced prompt as plain text, ready to be pasted directly into an image generation tool."
-      : "You are an expert prompt engineer specializing in enhancing user prompts for language models. Transform user inputs into well-structured, detailed prompts that will yield the best possible results. Format your response using markdown for clarity when helpful, but keep it concise and focused.";
+    // Select the appropriate system prompt based on the mode
+    const systemMessage = isImagePrompt 
+      ? IMAGE_SYSTEM_PROMPT
+      : TEXT_SYSTEM_PROMPT;
 
+    const userMessage = isImagePrompt
+      ? `Raw: "${prompt}"`
+      : `Mode: ${enhancementMode}\nRaw: "${prompt}"`;
+      
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -65,11 +137,11 @@ async function callOpenRouterAPI(prompt: string, isImagePrompt: boolean = false)
           },
           {
             role: "user",
-            content: isImagePrompt
-              ? `Please enhance this image generation prompt, making it detailed and optimized for AI image generators. Return ONLY the enhanced prompt with no commentary: "${prompt}"`
-              : `Please enhance this prompt for better AI responses: "${prompt}"`
+            content: userMessage
           }
-        ]
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
       })
     });
 

@@ -14,6 +14,15 @@ import { SavedPrompts, SavedPrompt } from '@/components/SavedPrompts';
 import { PromptHistory, HistoryPrompt } from '@/components/PromptHistory';
 import { RandomPrompt } from '@/components/RandomPrompt';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+
+type EnhancementMode = "professional" | "creative" | "academic" | "technical" | "marketing" | "storytelling";
 
 export function PromptForm() {
   const [inputPrompt, setInputPrompt] = useState('');
@@ -22,6 +31,7 @@ export function PromptForm() {
   const [isImageMode, setIsImageMode] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isUsingMarkdown, setIsUsingMarkdown] = useState(true);
+  const [enhancementMode, setEnhancementMode] = useState<EnhancementMode>("professional");
   
   // Check if the current prompt is saved
   useEffect(() => {
@@ -62,7 +72,8 @@ export function PromptForm() {
     setIsLoading(true);
     
     try {
-      const response = await enhancePrompt(inputPrompt, isImageMode);
+      // Pass the enhancement mode to the API
+      const response = await enhancePrompt(inputPrompt, isImageMode, enhancementMode);
       
       if (response.error) {
         console.error(response.error);
@@ -128,6 +139,14 @@ export function PromptForm() {
     toast.success("Prompt saved to your collection!");
   };
   
+  // Disable enhancement mode selection when in image mode
+  useEffect(() => {
+    if (isImageMode) {
+      // Reset to professional if switching to image mode
+      setEnhancementMode("professional");
+    }
+  }, [isImageMode]);
+  
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto space-y-4 sm:space-y-6 px-2 sm:px-0">
       <div className="space-y-2">
@@ -172,6 +191,31 @@ export function PromptForm() {
         </div>
       </div>
       
+      {/* Enhancement Mode Selector */}
+      {!isImageMode && (
+        <div className="flex items-center gap-3 px-1">
+          <label htmlFor="enhancementMode" className="text-sm font-medium whitespace-nowrap">
+            Enhancement Style:
+          </label>
+          <Select 
+            value={enhancementMode} 
+            onValueChange={(value) => setEnhancementMode(value as EnhancementMode)}
+          >
+            <SelectTrigger id="enhancementMode" className="w-[180px]">
+              <SelectValue placeholder="Select style" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="professional">Professional</SelectItem>
+              <SelectItem value="creative">Creative</SelectItem>
+              <SelectItem value="academic">Academic</SelectItem>
+              <SelectItem value="technical">Technical</SelectItem>
+              <SelectItem value="marketing">Marketing</SelectItem>
+              <SelectItem value="storytelling">Storytelling</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      
       <div className="flex justify-center">
         <Button
           type="submit"
@@ -191,7 +235,7 @@ export function PromptForm() {
             <>
               {isImageMode 
                 ? "✨ Enhance Image Prompt" 
-                : "✨ Enhance Prompt"}
+                : `✨ Enhance ${enhancementMode.charAt(0).toUpperCase() + enhancementMode.slice(1)} Prompt`}
             </>
           )}
         </Button>
@@ -201,6 +245,7 @@ export function PromptForm() {
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
           <label htmlFor="enhancedPrompt" className="text-sm font-medium">
             Enhanced Prompt {isImageMode && <span className="text-primary text-xs">(Image Optimized)</span>}
+            {!isImageMode && <span className="text-primary text-xs capitalize">({enhancementMode})</span>}
           </label>
           {enhancedPrompt && (
             <div className="flex flex-wrap items-center gap-1">
