@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Sparkles, GraduationCap, Briefcase, Info, MagicWand, MessageCircle } from 'lucide-react';
+import { Sparkles, GraduationCap, Briefcase, Info, Wand2, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -53,7 +53,7 @@ export function StyleSelector({ value, onChange, disabled = false }: StyleSelect
       value: "storytelling", 
       label: "Storytelling", 
       color: "bg-amber-500",
-      icon: <MagicWand className="h-4 w-4" />
+      icon: <Wand2 className="h-4 w-4" />
     },
     { 
       value: "marketing", 
