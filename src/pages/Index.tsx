@@ -26,12 +26,6 @@ const Index = () => {
               <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto animate-fade-in">
                 Transform basic prompts into powerful, context-rich instructions optimized for any AI model or image generator.
               </p>
-              <div className="pt-1 max-w-2xl mx-auto">
-                <p className="text-xs sm:text-sm text-muted-foreground animate-fade-in-delayed">
-                  Choose from professional, creative, academic, technical, marketing, or storytelling styles for text prompts,
-                  or use our specialized image prompt mode for stunning AI art generation.
-                </p>
-              </div>
             </div>
             
             <div className="animate-scale-in">
