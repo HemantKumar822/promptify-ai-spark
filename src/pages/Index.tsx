@@ -24,7 +24,7 @@ const Index = () => {
                 AI Prompt Engineer
               </h1>
               <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto animate-fade-in">
-                Transform basic prompts into powerful, context-rich instructions optimized for any AI model or image generator.
+                Transform basic prompts into powerful, context-rich instructions optimized for any AI model.
               </p>
             </div>
             
