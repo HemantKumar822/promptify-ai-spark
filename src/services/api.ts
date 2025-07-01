@@ -1,12 +1,86 @@
 
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 interface EnhancePromptResponse {
   enhancedPrompt: string;
   error?: string;
 }
 
-const OPENROUTER_API_KEY = "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";
+// Get API key from user account or localStorage
+const getApiKey = async (): Promise<string> => {
+  try {
+    // Try to get from user's account first
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError) {
+      console.error('Error getting user:', userError);
+    }
+    
+    if (user) {
+      console.log('Checking for encrypted API key for user:', user.id);
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('api_key_encrypted')
+        .eq('id', user.id)
+        .single();
+      
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+      }
+      
+      if (profile?.api_key_encrypted) {
+        try {
+          console.log('Found encrypted API key, decrypting...');
+          // Decrypt the API key
+          const decryptedKey = await decryptApiKey(profile.api_key_encrypted, user.id);
+          if (decryptedKey && decryptedKey.trim()) {
+            console.log('Successfully decrypted API key');
+            return decryptedKey;
+          }
+        } catch (error) {
+          console.error('Error decrypting API key:', error);
+        }
+      }
+    }
+    
+    // Fallback to localStorage
+    console.log('Checking localStorage for API key...');
+    const localKey = localStorage.getItem('openrouter-api-key');
+    if (localKey && localKey.trim()) {
+      console.log('Found API key in localStorage');
+      return localKey;
+    }
+    
+    console.log('No API key found in profile or localStorage');
+    return "";
+  } catch (error) {
+    console.error('Error in getApiKey:', error);
+    return "";
+  }
+};
+
+// Decrypt function (same as in SettingsModal)
+const decryptApiKey = async (encryptedKey: string, userSecret: string): Promise<string> => {
+  try {
+    const encoder = new TextEncoder()
+    const decoder = new TextDecoder()
+    const combined = new Uint8Array(atob(encryptedKey).split('').map(char => char.charCodeAt(0)))
+    const iv = combined.slice(0, 12)
+    const encrypted = combined.slice(12)
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(userSecret.padEnd(32, '0')),
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt']
+    )
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted)
+    return decoder.decode(decrypted)
+  } catch {
+    return ''
+  }
+};
 
 // System prompts for different enhancement modes
 const TEXT_SYSTEM_PROMPT = `You are an expert Prompt Enhancer AI trained to rewrite and upgrade user prompts to make them more powerful, clear, and effective for use with large language models like ChatGPT, Claude, or Gemini.
@@ -85,6 +159,12 @@ Example:
 Raw: "A futuristic city"  
 Enhanced: "A futuristic cyberpunk cityscape at night, illuminated by neon lights, with flying cars in the sky, reflective wet streets, dense fog, and glowing skyscrapers — digital art, wide-angle perspective, ultra-detailed."`;
 
+// Check if API key is available
+export const hasApiKey = async (): Promise<boolean> => {
+  const apiKey = await getApiKey();
+  return apiKey.trim() !== "";
+};
+
 // Enhanced API call for both text and image prompts
 export const enhancePrompt = async (prompt: string, isImageMode: boolean = false, enhancementMode: string = "professional"): Promise<EnhancePromptResponse> => {
   // Display a loading message
@@ -111,6 +191,13 @@ export const enhancePrompt = async (prompt: string, isImageMode: boolean = false
 // Call to OpenRouter API for all prompt enhancements
 async function callOpenRouterAPI(prompt: string, isImagePrompt: boolean = false, enhancementMode: string = "professional"): Promise<string> {
   try {
+    // Get the user's API key
+    const apiKey = await getApiKey();
+    
+    if (!apiKey || apiKey.trim() === "") {
+      throw new Error("🔑 No API key found! Please add your OpenRouter API key in Settings → API Keys to continue.");
+    }
+    
     // Select the appropriate system prompt based on the mode
     const systemMessage = isImagePrompt 
       ? IMAGE_SYSTEM_PROMPT
@@ -124,9 +211,9 @@ async function callOpenRouterAPI(prompt: string, isImagePrompt: boolean = false,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Authorization": `Bearer ${apiKey}`,
         "HTTP-Referer": window.location.origin,
-        "X-Title": "Promptify"
+        "X-Title": "AI Prompt Engineer"
       },
       body: JSON.stringify({
         model: "deepseek/deepseek-chat-v3-0324:free",
