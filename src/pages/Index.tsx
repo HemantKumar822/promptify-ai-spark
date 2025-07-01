@@ -7,6 +7,8 @@ import { PromptForm } from '@/components/PromptForm';
 import { Footer } from '@/components/Footer';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { UserMenu } from '@/components/auth/UserMenu';
+import { SimpleUserAvatar } from '@/components/auth/SimpleUserAvatar';
+import { UserMenuDebug } from '@/components/auth/UserMenuDebug';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -20,24 +22,34 @@ const Index = () => {
   return (
     <ThemeProvider defaultTheme="light">
       <div className="min-h-screen flex flex-col">
-        <header className="py-3 sm:py-4 px-3 sm:px-6 border-b">
+        <header className="py-3 sm:py-4 px-3 sm:px-6 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
             <Logo />
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <ThemeToggle />
               {loading ? (
-                <div className="h-8 w-8 bg-muted rounded-full animate-pulse" />
+                <div className="h-10 w-10 bg-muted rounded-full animate-pulse" />
               ) : user ? (
-                <UserMenu onOpenSettings={() => setShowSettingsModal(true)} />
+                <>
+                  <UserMenu 
+                    onOpenSettings={() => setShowSettingsModal(true)} 
+                    className="relative"
+                  />
+                  {/* Fallback avatar if dropdown has issues */}
+                  <SimpleUserAvatar 
+                    onOpenSettings={() => setShowSettingsModal(true)}
+                    className="md:hidden"
+                  />
+                </>
               ) : (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setShowAuthModal(true)}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 h-10"
                 >
                   <LogIn className="h-4 w-4" />
-                  Sign In
+                  <span className="hidden sm:inline">Sign In</span>
                 </Button>
               )}
             </div>
@@ -69,6 +81,9 @@ const Index = () => {
         {/* Modals */}
         <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
         <SettingsModal open={showSettingsModal} onOpenChange={setShowSettingsModal} />
+        
+        {/* Debug component for development */}
+        <UserMenuDebug />
       </div>
     </ThemeProvider>
   );

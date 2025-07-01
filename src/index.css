@@ -302,3 +302,25 @@
     @apply text-base;
   }
 }
+
+/* User menu dropdown fixes */
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+.user-menu-trigger {
+  position: relative;
+  z-index: 50;
+}
+
+.user-menu-content {
+  z-index: 9999;
+  pointer-events: auto;
+}
+
+/* Avatar fallback styling */
+.user-avatar-fallback {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  font-weight: 600;
+}
