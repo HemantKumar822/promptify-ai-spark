@@ -203,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Get the correct redirect URL based on environment
       const redirectTo = import.meta.env.PROD 
-        ? 'https://promptify-ai-git-cursor-analyz-f21c69-hemants-projects-f496520d.vercel.app'
+        ? 'https://promptify-ai-ten.vercel.app'
         : window.location.origin
 
       console.log('Using redirect URL:', redirectTo)
