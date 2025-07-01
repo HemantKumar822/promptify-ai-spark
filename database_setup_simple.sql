@@ -1,9 +1,7 @@
 -- =============================================
--- AI Prompt Engineer - Database Setup
+-- AI Prompt Engineer - Simple Database Setup
 -- Run this in Supabase SQL Editor
 -- =============================================
-
--- Note: Skip auth.users RLS as it's managed by Supabase
 
 -- Create profiles table
 CREATE TABLE IF NOT EXISTS profiles (
@@ -43,6 +41,11 @@ CREATE TABLE IF NOT EXISTS user_settings (
 -- Row Level Security Policies
 -- =============================================
 
+-- Enable RLS on our tables
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_prompts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+
 -- Profiles policies
 CREATE POLICY "Users can view own profile" ON profiles
   FOR SELECT USING (auth.uid() = id);
@@ -75,14 +78,6 @@ CREATE POLICY "Users can update own settings" ON user_settings
 
 CREATE POLICY "Users can insert own settings" ON user_settings
   FOR INSERT WITH CHECK (auth.uid() = user_id);
-
--- =============================================
--- Enable RLS on all tables
--- =============================================
-
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_prompts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 
 -- =============================================
 -- Functions for automatic profile creation
@@ -147,25 +142,9 @@ CREATE INDEX IF NOT EXISTS user_prompts_created_at_idx ON user_prompts(created_a
 CREATE INDEX IF NOT EXISTS user_prompts_is_saved_idx ON user_prompts(is_saved) WHERE is_saved = true;
 
 -- =============================================
--- Enable Google OAuth (Optional)
+-- Comments for documentation
 -- =============================================
-
--- This allows Google OAuth integration
--- You can also configure this in the Supabase dashboard under Authentication > Providers
 
 COMMENT ON TABLE profiles IS 'User profiles with encrypted API keys and preferences';
 COMMENT ON TABLE user_prompts IS 'User prompt history with enhancement details';
 COMMENT ON TABLE user_settings IS 'User preferences and settings';
-
--- =============================================
--- Sample data (Optional - for testing)
--- =============================================
-
--- Uncomment below to insert test data after creating a user account
-/*
-INSERT INTO profiles (id, email, full_name) VALUES
-  ('your-user-id-here', 'test@example.com', 'Test User');
-
-INSERT INTO user_prompts (user_id, input_prompt, enhanced_prompt, enhancement_mode) VALUES
-  ('your-user-id-here', 'Write a story', 'Write an engaging and captivating story...', 'creative');
-*/
