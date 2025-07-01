@@ -1,19 +1,46 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ThemeProvider } from '@/lib/theme-provider';
 import { Logo } from '@/components/Logo';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { PromptForm } from '@/components/PromptForm';
 import { Footer } from '@/components/Footer';
+import { AuthModal } from '@/components/auth/AuthModal';
+import { UserMenu } from '@/components/auth/UserMenu';
+import { SettingsModal } from '@/components/settings/SettingsModal';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import { LogIn } from 'lucide-react';
 
 const Index = () => {
+  const { user, loading } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
   return (
     <ThemeProvider defaultTheme="light">
       <div className="min-h-screen flex flex-col">
         <header className="py-3 sm:py-4 px-3 sm:px-6 border-b">
           <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
             <Logo />
-            <ThemeToggle />
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+              {loading ? (
+                <div className="h-8 w-8 bg-muted rounded-full animate-pulse" />
+              ) : user ? (
+                <UserMenu onOpenSettings={() => setShowSettingsModal(true)} />
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAuthModal(true)}
+                  className="flex items-center gap-2"
+                >
+                  <LogIn className="h-4 w-4" />
+                  Sign In
+                </Button>
+              )}
+            </div>
           </div>
         </header>
         
@@ -35,6 +62,10 @@ const Index = () => {
         </main>
         
         <Footer />
+        
+        {/* Modals */}
+        <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
+        <SettingsModal open={showSettingsModal} onOpenChange={setShowSettingsModal} />
       </div>
     </ThemeProvider>
   );

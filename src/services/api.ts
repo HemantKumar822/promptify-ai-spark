@@ -1,12 +1,64 @@
 
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 interface EnhancePromptResponse {
   enhancedPrompt: string;
   error?: string;
 }
 
-const OPENROUTER_API_KEY = "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";
+// Get API key from user account or localStorage
+const getApiKey = async (): Promise<string> => {
+  // Try to get from user's account first
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('api_key_encrypted')
+      .eq('id', user.id)
+      .single();
+    
+    if (profile?.api_key_encrypted) {
+      try {
+        // Decrypt the API key
+        const decryptedKey = await decryptApiKey(profile.api_key_encrypted, user.id);
+        if (decryptedKey) return decryptedKey;
+      } catch (error) {
+        console.error('Error decrypting API key:', error);
+      }
+    }
+  }
+  
+  // Fallback to localStorage
+  const localKey = localStorage.getItem('openrouter-api-key');
+  if (localKey) return localKey;
+  
+  // Final fallback to default key
+  return import.meta.env.VITE_DEFAULT_OPENROUTER_KEY || "";
+};
+
+// Decrypt function (same as in SettingsModal)
+const decryptApiKey = async (encryptedKey: string, userSecret: string): Promise<string> => {
+  try {
+    const encoder = new TextEncoder()
+    const decoder = new TextDecoder()
+    const combined = new Uint8Array(atob(encryptedKey).split('').map(char => char.charCodeAt(0)))
+    const iv = combined.slice(0, 12)
+    const encrypted = combined.slice(12)
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(userSecret.padEnd(32, '0')),
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt']
+    )
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted)
+    return decoder.decode(decrypted)
+  } catch {
+    return ''
+  }
+};
 
 // System prompts for different enhancement modes
 const TEXT_SYSTEM_PROMPT = `You are an expert Prompt Enhancer AI trained to rewrite and upgrade user prompts to make them more powerful, clear, and effective for use with large language models like ChatGPT, Claude, or Gemini.
@@ -111,6 +163,13 @@ export const enhancePrompt = async (prompt: string, isImageMode: boolean = false
 // Call to OpenRouter API for all prompt enhancements
 async function callOpenRouterAPI(prompt: string, isImagePrompt: boolean = false, enhancementMode: string = "professional"): Promise<string> {
   try {
+    // Get the user's API key
+    const apiKey = await getApiKey();
+    
+    if (!apiKey) {
+      throw new Error("No API key available. Please add your OpenRouter API key in Settings.");
+    }
+    
     // Select the appropriate system prompt based on the mode
     const systemMessage = isImagePrompt 
       ? IMAGE_SYSTEM_PROMPT
@@ -124,9 +183,9 @@ async function callOpenRouterAPI(prompt: string, isImagePrompt: boolean = false,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Authorization": `Bearer ${apiKey}`,
         "HTTP-Referer": window.location.origin,
-        "X-Title": "Promptify"
+        "X-Title": "AI Prompt Engineer"
       },
       body: JSON.stringify({
         model: "deepseek/deepseek-chat-v3-0324:free",
