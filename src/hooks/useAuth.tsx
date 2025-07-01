@@ -197,19 +197,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    })
+    try {
+      console.log('Initiating Google OAuth sign-in...')
+      console.log('Current origin:', window.location.origin)
+      
+      // Get the correct redirect URL based on environment
+      const redirectTo = import.meta.env.PROD 
+        ? 'https://promptify-ai-git-cursor-analyz-f21c69-hemants-projects-f496520d.vercel.app'
+        : window.location.origin
 
-    if (error) {
-      toast.error(error.message)
-      return { error }
+      console.log('Using redirect URL:', redirectTo)
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      })
+
+      if (error) {
+        console.error('Google OAuth error:', error)
+        toast.error(`OAuth Error: ${error.message}`)
+        return { error }
+      }
+
+      console.log('OAuth initiated successfully:', data)
+      return { error: null }
+    } catch (error) {
+      console.error('Error in signInWithGoogle:', error)
+      toast.error('Failed to initiate Google sign-in')
+      return { error: error as AuthError }
     }
-
-    return { error: null }
   }
 
   const signOut = async () => {

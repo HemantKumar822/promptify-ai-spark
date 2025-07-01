@@ -61,12 +61,23 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   }
 
   const handleGoogleSignIn = async () => {
-    setLoading(true)
-    const { error } = await signInWithGoogle()
-    setLoading(false)
-    
-    if (!error) {
-      onOpenChange(false)
+    try {
+      setLoading(true)
+      console.log('AuthModal: Starting Google sign-in...')
+      
+      const { error } = await signInWithGoogle()
+      
+      if (error) {
+        console.error('AuthModal: Google sign-in error:', error)
+        // Don't close modal if there's an error
+      } else {
+        console.log('AuthModal: Google sign-in successful')
+        onOpenChange(false)
+      }
+    } catch (error) {
+      console.error('AuthModal: Unexpected error:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
