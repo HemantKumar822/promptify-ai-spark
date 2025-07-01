@@ -7,7 +7,6 @@ import { PromptForm } from '@/components/PromptForm';
 import { Footer } from '@/components/Footer';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { UserMenu } from '@/components/auth/UserMenu';
-import { SimpleUserAvatar } from '@/components/auth/SimpleUserAvatar';
 import { UserMenuDebug } from '@/components/auth/UserMenuDebug';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { useAuth } from '@/hooks/useAuth';
@@ -30,17 +29,10 @@ const Index = () => {
               {loading ? (
                 <div className="h-10 w-10 bg-muted rounded-full animate-pulse" />
               ) : user ? (
-                <>
-                  <UserMenu 
-                    onOpenSettings={() => setShowSettingsModal(true)} 
-                    className="relative"
-                  />
-                  {/* Fallback avatar if dropdown has issues */}
-                  <SimpleUserAvatar 
-                    onOpenSettings={() => setShowSettingsModal(true)}
-                    className="md:hidden"
-                  />
-                </>
+                <UserMenu 
+                  onOpenSettings={() => setShowSettingsModal(true)} 
+                  className="relative z-50"
+                />
               ) : (
                 <Button
                   variant="outline"

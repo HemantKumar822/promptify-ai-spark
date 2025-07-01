@@ -19,14 +19,34 @@ interface UserMenuProps {
 }
 
 export function UserMenu({ onOpenSettings, className }: UserMenuProps) {
-  const { user, profile, signOut } = useAuth()
+  const { user, profile, loading, signOut, refreshProfile } = useAuth()
 
+  // Don't render if still loading auth
+  if (loading) {
+    console.log('UserMenu: Auth still loading')
+    return (
+      <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" />
+    )
+  }
+
+  // Don't render if no user
   if (!user) {
     console.log('UserMenu: No user found')
     return null
   }
 
-  console.log('UserMenu: Rendering for user:', user.email)
+  console.log('UserMenu: Rendering for user:', user.email, 'Profile:', profile)
+
+  // Auto-refresh profile if missing after a delay
+  React.useEffect(() => {
+    if (user && !profile && !loading) {
+      console.log('UserMenu: Profile missing, refreshing...')
+      const timer = setTimeout(() => {
+        refreshProfile()
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [user, profile, loading, refreshProfile])
 
   const getInitials = (name: string | null | undefined, email: string) => {
     if (name) {
@@ -59,7 +79,7 @@ export function UserMenu({ onOpenSettings, className }: UserMenuProps) {
               alt={displayName}
               className="object-cover"
             />
-            <AvatarFallback className="user-avatar-fallback text-sm font-medium">
+            <AvatarFallback className="user-avatar-fallback text-sm font-medium bg-gradient-to-br from-blue-400 to-purple-500 text-white">
               {initials}
             </AvatarFallback>
           </Avatar>
