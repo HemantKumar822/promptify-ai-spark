@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { enhancePrompt } from '@/services/api';
+import { enhancePrompt, hasApiKey as checkHasApiKey } from '@/services/api';
 import { CopyButton } from '@/components/CopyButton';
 import { Image, Star, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -23,9 +23,10 @@ import { supabase } from '@/lib/supabase';
 interface PromptFormProps {
   onOpenSettings?: () => void
   onOpenAuth?: () => void
+  refreshTrigger?: number // Add this to force refresh when settings change
 }
 
-export function PromptForm({ onOpenSettings, onOpenAuth }: PromptFormProps) {
+export function PromptForm({ onOpenSettings, onOpenAuth, refreshTrigger }: PromptFormProps) {
   const { user, profile } = useAuth()
   const { settings, updateSettings } = useUserSettings()
   
@@ -41,16 +42,11 @@ export function PromptForm({ onOpenSettings, onOpenAuth }: PromptFormProps) {
   // Check API key availability
   const checkApiKey = async () => {
     try {
-      // Check user account first
-      if (user && profile?.api_key_encrypted) {
-        setHasApiKey(true)
-        return
-      }
-      
-      // Check localStorage
-      const localKey = localStorage.getItem('openrouter-api-key')
-      setHasApiKey(!!localKey && localKey.trim() !== '')
+      const apiKeyExists = await checkHasApiKey()
+      setHasApiKey(apiKeyExists)
+      console.log('PromptForm: API key check result:', apiKeyExists)
     } catch (error) {
+      console.error('PromptForm: Error checking API key:', error)
       setHasApiKey(false)
     }
   }
@@ -63,7 +59,7 @@ export function PromptForm({ onOpenSettings, onOpenAuth }: PromptFormProps) {
   // Check API key on mount and when user/profile changes
   useEffect(() => {
     checkApiKey()
-  }, [user, profile])
+  }, [user, profile, refreshTrigger])
 
   // Check if the current prompt is saved
   useEffect(() => {

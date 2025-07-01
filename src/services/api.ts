@@ -9,33 +9,55 @@ interface EnhancePromptResponse {
 
 // Get API key from user account or localStorage
 const getApiKey = async (): Promise<string> => {
-  // Try to get from user's account first
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('api_key_encrypted')
-      .eq('id', user.id)
-      .single();
+  try {
+    // Try to get from user's account first
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    if (profile?.api_key_encrypted) {
-      try {
-        // Decrypt the API key
-        const decryptedKey = await decryptApiKey(profile.api_key_encrypted, user.id);
-        if (decryptedKey) return decryptedKey;
-      } catch (error) {
-        console.error('Error decrypting API key:', error);
+    if (userError) {
+      console.error('Error getting user:', userError);
+    }
+    
+    if (user) {
+      console.log('Checking for encrypted API key for user:', user.id);
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('api_key_encrypted')
+        .eq('id', user.id)
+        .single();
+      
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+      }
+      
+      if (profile?.api_key_encrypted) {
+        try {
+          console.log('Found encrypted API key, decrypting...');
+          // Decrypt the API key
+          const decryptedKey = await decryptApiKey(profile.api_key_encrypted, user.id);
+          if (decryptedKey && decryptedKey.trim()) {
+            console.log('Successfully decrypted API key');
+            return decryptedKey;
+          }
+        } catch (error) {
+          console.error('Error decrypting API key:', error);
+        }
       }
     }
+    
+    // Fallback to localStorage
+    console.log('Checking localStorage for API key...');
+    const localKey = localStorage.getItem('openrouter-api-key');
+    if (localKey && localKey.trim()) {
+      console.log('Found API key in localStorage');
+      return localKey;
+    }
+    
+    console.log('No API key found in profile or localStorage');
+    return "";
+  } catch (error) {
+    console.error('Error in getApiKey:', error);
+    return "";
   }
-  
-  // Fallback to localStorage
-  const localKey = localStorage.getItem('openrouter-api-key');
-  if (localKey) return localKey;
-  
-  // No default key - user must provide their own
-  return "";
 };
 
 // Decrypt function (same as in SettingsModal)
@@ -136,6 +158,12 @@ Example:
 
 Raw: "A futuristic city"  
 Enhanced: "A futuristic cyberpunk cityscape at night, illuminated by neon lights, with flying cars in the sky, reflective wet streets, dense fog, and glowing skyscrapers — digital art, wide-angle perspective, ultra-detailed."`;
+
+// Check if API key is available
+export const hasApiKey = async (): Promise<boolean> => {
+  const apiKey = await getApiKey();
+  return apiKey.trim() !== "";
+};
 
 // Enhanced API call for both text and image prompts
 export const enhancePrompt = async (prompt: string, isImageMode: boolean = false, enhancementMode: string = "professional"): Promise<EnhancePromptResponse> => {

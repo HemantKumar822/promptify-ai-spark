@@ -17,6 +17,7 @@ const Index = () => {
   const { user, loading } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   return (
     <ThemeProvider defaultTheme="light">
@@ -63,6 +64,7 @@ const Index = () => {
               <PromptForm 
                 onOpenSettings={() => setShowSettingsModal(true)}
                 onOpenAuth={() => setShowAuthModal(true)}
+                refreshTrigger={refreshTrigger}
               />
             </div>
           </div>
@@ -72,7 +74,16 @@ const Index = () => {
         
         {/* Modals */}
         <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
-        <SettingsModal open={showSettingsModal} onOpenChange={setShowSettingsModal} />
+        <SettingsModal 
+          open={showSettingsModal} 
+          onOpenChange={(open) => {
+            setShowSettingsModal(open)
+            if (!open) {
+              // Trigger refresh when settings modal closes
+              setRefreshTrigger(prev => prev + 1)
+            }
+          }} 
+        />
         
         {/* Debug component for development */}
         <UserMenuDebug />

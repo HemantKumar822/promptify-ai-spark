@@ -99,21 +99,37 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   }, [open, user, profile])
 
   const loadApiKey = async () => {
-    if (profile?.api_key_encrypted && user?.id) {
-      try {
+    try {
+      // First check user's encrypted API key
+      if (profile?.api_key_encrypted && user?.id) {
+        console.log('Loading encrypted API key from profile')
         const decryptedKey = await decryptApiKey(profile.api_key_encrypted, user.id)
-        if (decryptedKey) {
-          setApiKeyForm(prev => ({ ...prev, openrouterKey: decryptedKey }))
+        if (decryptedKey && decryptedKey.trim()) {
+          console.log('Successfully decrypted API key')
+          setApiKeyForm(prev => ({ 
+            ...prev, 
+            openrouterKey: decryptedKey,
+            saveToAccount: true 
+          }))
+          return
         }
-      } catch (error) {
-        console.error('Error decrypting API key:', error)
       }
-    }
-    
-    // Also check localStorage as fallback
-    const localKey = localStorage.getItem('openrouter-api-key')
-    if (localKey && !apiKeyForm.openrouterKey) {
-      setApiKeyForm(prev => ({ ...prev, openrouterKey: localKey, saveToAccount: false }))
+      
+      // Fallback to localStorage
+      const localKey = localStorage.getItem('openrouter-api-key')
+      if (localKey && localKey.trim()) {
+        console.log('Loading API key from localStorage')
+        setApiKeyForm(prev => ({ 
+          ...prev, 
+          openrouterKey: localKey, 
+          saveToAccount: false 
+        }))
+        return
+      }
+      
+      console.log('No API key found in profile or localStorage')
+    } catch (error) {
+      console.error('Error loading API key:', error)
     }
   }
 
@@ -164,28 +180,41 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
     setLoading(true)
     try {
+      console.log('Saving API key, saveToAccount:', apiKeyForm.saveToAccount)
+      
       if (apiKeyForm.saveToAccount && user?.id) {
         // Encrypt and save to account
+        console.log('Encrypting API key for user:', user.id)
         const encryptedKey = await encryptApiKey(apiKeyForm.openrouterKey, user.id)
+        console.log('Encrypted key created, saving to profile...')
+        
         await updateProfile({ api_key_encrypted: encryptedKey })
+        
         // Remove from localStorage if moving to account
         localStorage.removeItem('openrouter-api-key')
+        console.log('API key saved to account and removed from localStorage')
         toast.success('API key saved to your account securely!')
       } else {
         // Save to localStorage
+        console.log('Saving API key to localStorage')
         localStorage.setItem('openrouter-api-key', apiKeyForm.openrouterKey)
+        
         // Remove from account if moving to local
         if (profile?.api_key_encrypted) {
+          console.log('Removing encrypted key from account')
           await updateProfile({ api_key_encrypted: null })
         }
+        console.log('API key saved locally')
         toast.success('API key saved locally!')
       }
       
-      // Trigger a page refresh to update API key detection
-      setTimeout(() => window.location.reload(), 1000);
+      // Refresh profile to update API key detection without page reload
+      console.log('Refreshing profile...')
+      await refreshProfile()
+      console.log('Profile refreshed successfully')
     } catch (error) {
       console.error('Error saving API key:', error)
-      toast.error('Failed to save API key')
+      toast.error(`Failed to save API key: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
