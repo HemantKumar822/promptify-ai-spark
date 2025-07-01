@@ -1,21 +1,27 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { enhancePrompt, hasApiKey as checkHasApiKey } from '@/services/api';
+import {
+  enhancePrompt,
+  getApiKey,
+  savePromptToHistory,
+  getSavedPrompts,
+  savePrompt,
+  unsavePrompt,
+  SavedPromptDb,
+} from '@/services/api';
 import { CopyButton } from '@/components/CopyButton';
 import { Image, Star, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
 import { SharePrompt } from '@/components/SharePrompt';
-import { SavedPrompts, SavedPrompt } from '@/components/SavedPrompts';
-import { PromptHistory, HistoryPrompt } from '@/components/PromptHistory';
+import { SavedPrompts } from '@/components/SavedPrompts';
+import { PromptHistory } from '@/components/PromptHistory';
 import { RandomPrompt } from '@/components/RandomPrompt';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { StyleSelector } from '@/components/StyleSelector';
-import { ApiKeyNotice } from '@/components/ApiKeyNotice';
+
 import { useAuth } from '@/hooks/useAuth';
 import { useUserSettings, EnhancementMode } from '@/hooks/useUserSettings';
 import { supabase } from '@/lib/supabase';
@@ -38,28 +44,39 @@ export function PromptForm({ onOpenSettings, onOpenAuth, refreshTrigger }: Promp
   const [isUsingMarkdown, setIsUsingMarkdown] = useState(true);
   const [enhancementMode, setEnhancementMode] = useState<EnhancementMode>(settings.defaultEnhancementMode);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [savedPrompts, setSavedPrompts] = useState<SavedPromptDb[]>([]);
   
   // Check API key availability
   const checkApiKey = async () => {
-    try {
-      const apiKeyExists = await checkHasApiKey()
-      setHasApiKey(apiKeyExists)
-      console.log('PromptForm: API key check result:', apiKeyExists)
-    } catch (error) {
-      console.error('PromptForm: Error checking API key:', error)
-      setHasApiKey(false)
+    if (!user) {
+      setHasApiKey(false);
+      return;
     }
-  }
+    try {
+      const key = await getApiKey(user);
+      const keyExists = !!key;
+      setHasApiKey(keyExists);
+      console.log('PromptForm: API key check result:', keyExists);
+    } catch (error) {
+      console.error('PromptForm: Error checking API key:', error);
+      setHasApiKey(false);
+    }
+  };
 
   // Update enhancement mode when settings change
   useEffect(() => {
     setEnhancementMode(settings.defaultEnhancementMode)
   }, [settings.defaultEnhancementMode])
 
-  // Check API key on mount and when user/profile changes
+  // Check API key on mount and when user/profile changes, and fetch saved prompts
   useEffect(() => {
-    checkApiKey()
-  }, [user, profile, refreshTrigger])
+    checkApiKey();
+    if (user) {
+      getSavedPrompts(user.id).then(setSavedPrompts);
+    } else {
+      setSavedPrompts([]);
+    }
+  }, [user, profile, refreshTrigger]);
 
   // Check if the current prompt is saved
   useEffect(() => {
@@ -67,14 +84,9 @@ export function PromptForm({ onOpenSettings, onOpenAuth, refreshTrigger }: Promp
       setIsSaved(false);
       return;
     }
-    
-    const savedPrompts: SavedPrompt[] = JSON.parse(
-      localStorage.getItem('promptify-saved-prompts') || '[]'
-    );
-    
     const promptExists = savedPrompts.some(p => p.text === enhancedPrompt);
     setIsSaved(promptExists);
-  }, [enhancedPrompt]);
+  }, [enhancedPrompt, savedPrompts]);
   
   // Add keyboard shortcut for toggling image mode (Ctrl+I or Cmd+I)
   useEffect(() => {
@@ -113,7 +125,7 @@ export function PromptForm({ onOpenSettings, onOpenAuth, refreshTrigger }: Promp
     
     try {
       // Pass the enhancement mode to the API
-      const response = await enhancePrompt(inputPrompt, isImageMode, enhancementMode);
+      const response = await enhancePrompt(inputPrompt, user, isImageMode, enhancementMode);
       
       if (response.error) {
         console.error(response.error);
@@ -122,34 +134,7 @@ export function PromptForm({ onOpenSettings, onOpenAuth, refreshTrigger }: Promp
         const enhancedText = response.enhancedPrompt;
         setEnhancedPrompt(enhancedText);
         
-        // Save to database if user is signed in
-        if (user && settings.autoSaveHistory) {
-          try {
-            await supabase.from('user_prompts').insert({
-              user_id: user.id,
-              input_prompt: inputPrompt,
-              enhanced_prompt: enhancedText,
-              is_image_prompt: isImageMode,
-              enhancement_mode: enhancementMode,
-              is_saved: false
-            });
-          } catch (error) {
-            console.warn('Failed to save to database:', error);
-          }
-        }
-        
-        // Add to local history as fallback
-        const newHistoryItem: HistoryPrompt = {
-          id: uuidv4(),
-          inputPrompt,
-          enhancedPrompt: enhancedText,
-          isImagePrompt: isImageMode,
-          timestamp: new Date().toISOString()
-        };
-        
-        const history = JSON.parse(localStorage.getItem('promptify-history') || '[]');
-        const updatedHistory = [newHistoryItem, ...history].slice(0, 10); // Keep only last 10
-        localStorage.setItem('promptify-history', JSON.stringify(updatedHistory));
+        // Save to database if user is signed in. The `enhancePrompt` function now handles this.
         
         // Update user's default mode if they've changed it
         if (enhancementMode !== settings.defaultEnhancementMode) {
@@ -165,40 +150,37 @@ export function PromptForm({ onOpenSettings, onOpenAuth, refreshTrigger }: Promp
     }
   };
   
+  const handleSaveToggle = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!user || !enhancedPrompt) {
+      toast.info(user ? 'Please enhance a prompt first.' : 'Please log in to save prompts.');
+      return;
+    }
+
+    if (isSaved) {
+      // Unsave the prompt
+      await unsavePrompt(enhancedPrompt, user.id);
+      setSavedPrompts(prev => prev.filter(p => p.text !== enhancedPrompt));
+    } else {
+      // Save the prompt
+      const newSavedPrompt = await savePrompt({
+        user_id: user.id,
+        text: enhancedPrompt,
+        is_image_prompt: isImageMode,
+      });
+      if (newSavedPrompt) {
+        setSavedPrompts(prev => [newSavedPrompt, ...prev]);
+      }
+    }
+  };
+  
   const toggleImageMode = () => {
     setIsImageMode(prev => !prev);
     toast.success(
       isImageMode ? "Regular prompt mode" : "Image prompt mode enabled"
     );
-  };
-  
-  const savePrompt = (e: React.MouseEvent) => {
-    // Prevent event propagation to avoid any form submission
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!enhancedPrompt) return;
-    
-    const newSavedPrompt: SavedPrompt = {
-      id: uuidv4(),
-      text: enhancedPrompt,
-      isImagePrompt: isImageMode,
-      createdAt: new Date().toISOString()
-    };
-    
-    const savedPrompts = JSON.parse(localStorage.getItem('promptify-saved-prompts') || '[]');
-    
-    // Check if already saved
-    if (savedPrompts.some(p => p.text === enhancedPrompt)) {
-      toast.error("This prompt is already saved!");
-      return;
-    }
-    
-    const updatedSavedPrompts = [newSavedPrompt, ...savedPrompts];
-    localStorage.setItem('promptify-saved-prompts', JSON.stringify(updatedSavedPrompts));
-    
-    setIsSaved(true);
-    toast.success("Prompt saved to your collection!");
   };
   
   // Reset enhancement mode when switching to image mode
@@ -211,9 +193,47 @@ export function PromptForm({ onOpenSettings, onOpenAuth, refreshTrigger }: Promp
   
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto space-y-4 sm:space-y-6 px-2 sm:px-0">
-      {/* API Key Notice */}
+      {/* API Key Notice - Subtle and clean */}
       {!hasApiKey && (
-        <ApiKeyNotice onOpenSettings={onOpenSettings} onOpenAuth={onOpenAuth} />
+        <div className="text-center mb-4">
+          <p className="text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1 bg-muted/50 px-3 py-1.5 rounded-full text-xs">
+              <span className="text-blue-500">🔑</span>
+              <span>Requires </span>
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.open('https://openrouter.ai/keys', '_blank');
+                }}
+                className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+              >
+                OpenRouter API key
+              </button>
+              <span> • </span>
+              {user ? (
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onOpenSettings?.();
+                  }}
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                >
+                  Add key
+                </button>
+              ) : (
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onOpenAuth?.();
+                  }}
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                >
+                  Sign in
+                </button>
+              )}
+            </span>
+          </p>
+        </div>
       )}
       
       <div className="space-y-2">
@@ -221,7 +241,7 @@ export function PromptForm({ onOpenSettings, onOpenAuth, refreshTrigger }: Promp
           <label htmlFor="inputPrompt" className="text-sm font-medium">
             Your Original Prompt {isImageMode && <span className="text-primary text-xs">(Image Mode)</span>}
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
             <SavedPrompts onSelectPrompt={setInputPrompt} />
             <PromptHistory onSelectPrompt={setInputPrompt} />
             <RandomPrompt 
@@ -239,21 +259,21 @@ export function PromptForm({ onOpenSettings, onOpenAuth, refreshTrigger }: Promp
             onChange={(e) => setInputPrompt(e.target.value)}
             className="resize-none min-h-[140px] sm:min-h-[180px] prompt-shadow focus-visible:ring-2 focus-visible:ring-primary/50 pr-10 text-sm sm:text-base"
           />
-          <div className="absolute bottom-3 left-3 flex items-center gap-2">
+          <div className="absolute bottom-2 left-2 flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button 
                   type="button"
                   onClick={toggleImageMode}
                   className={cn(
-                    "p-1.5 rounded-md transition-all", 
+                    "p-2 rounded-md transition-all", 
                     isImageMode 
                       ? "bg-primary/10 text-primary ring-2 ring-primary/50" 
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                   aria-label="Toggle image prompt mode"
                 >
-                  <Image size={16} />
+                  <Image size={18} />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top">
@@ -303,84 +323,87 @@ export function PromptForm({ onOpenSettings, onOpenAuth, refreshTrigger }: Promp
       </div>
       
       <div className="space-y-2">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-          <label htmlFor="enhancedPrompt" className="text-sm font-medium">
-            Enhanced Prompt {isImageMode && <span className="text-primary text-xs">(Image Optimized)</span>}
-            {!isImageMode && <span className="text-primary text-xs capitalize ml-1">({enhancementMode})</span>}
-          </label>
+        <label htmlFor="enhancedPrompt" className="text-sm font-medium block">
+          Enhanced Prompt {isImageMode && <span className="text-primary text-xs">(Image Optimized)</span>}
+          {!isImageMode && <span className="text-primary text-xs capitalize ml-1">({enhancementMode})</span>}
+        </label>
+        
+        <div className="relative group">
+          {isImageMode || !isUsingMarkdown || !enhancedPrompt ? (
+            <Textarea
+              id="enhancedPrompt"
+              placeholder="Your enhanced prompt will appear here..."
+              value={enhancedPrompt}
+              readOnly
+              className="resize-none min-h-[140px] sm:min-h-[180px] bg-accent prompt-shadow text-sm sm:text-base pr-16"
+            />
+          ) : (
+            <div className="resize-none min-h-[140px] sm:min-h-[180px] bg-accent prompt-shadow rounded-md p-4 pr-16 overflow-auto">
+              <MarkdownRenderer content={enhancedPrompt} />
+            </div>
+          )}
+          
           {enhancedPrompt && (
-            <div className="flex flex-wrap items-center gap-1">
-              <CopyButton text={enhancedPrompt} />
-              <SharePrompt prompt={enhancedPrompt} isImagePrompt={isImageMode} />
+            <div className="absolute top-3 right-3 flex flex-col gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-primary"
-                    onClick={savePrompt}
-                    disabled={isSaved}
+                    onClick={handleSaveToggle}
+                    className="h-8 w-8 hover:bg-transparent"
                   >
-                    <Star
-                      className={cn("h-4 w-4", isSaved && "fill-primary text-primary")}
-                    />
-                    <span className="sr-only">
-                      {isSaved ? "Saved to collection" : "Save prompt"}
-                    </span>
+                    <Star className={cn("h-4 w-4", isSaved ? "text-yellow-400 fill-yellow-400" : "text-foreground/40")} />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>{isSaved ? "Already saved" : "Save to your collection"}</p>
-                </TooltipContent>
+                <TooltipContent side="left">{isSaved ? 'Unsave Prompt' : 'Save Prompt'}</TooltipContent>
               </Tooltip>
-              {!isImageMode && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setIsUsingMarkdown(!isUsingMarkdown);
-                      }}
-                    >
-                      <span className={cn(
-                        "font-mono text-xs font-bold",
-                        isUsingMarkdown && "text-primary"
-                      )}>
-                        MD
-                      </span>
-                      <span className="sr-only">
-                        {isUsingMarkdown ? "View plain text" : "View with markdown"}
-                      </span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <p>{isUsingMarkdown ? "View as plain text" : "View with markdown formatting"}</p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
+              
+              <SharePrompt 
+                prompt={enhancedPrompt} 
+                isImagePrompt={isImageMode} 
+                trigger={
+                  <Button 
+                    type="button"
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 hover:bg-transparent"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground/40">
+                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                      <polyline points="16 6 12 2 8 6"/>
+                      <line x1="12" x2="12" y1="2" y2="15"/>
+                    </svg>
+                  </Button>
+                }
+              />
+              
+              <CopyButton 
+                text={enhancedPrompt} 
+                trigger={
+                  <Button 
+                    type="button"
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 hover:bg-transparent"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground/40">
+                      <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                    </svg>
+                  </Button>
+                }
+              />
+            </div>
+          )}
+          
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded-md">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
           )}
         </div>
-        
-        {isImageMode || !isUsingMarkdown || !enhancedPrompt ? (
-          <Textarea
-            id="enhancedPrompt"
-            placeholder="Your enhanced prompt will appear here..."
-            value={enhancedPrompt}
-            readOnly
-            className="resize-none min-h-[140px] sm:min-h-[180px] bg-accent prompt-shadow text-sm sm:text-base"
-          />
-        ) : (
-          <div className="resize-none min-h-[140px] sm:min-h-[180px] bg-accent prompt-shadow rounded-md p-3 overflow-auto">
-            <MarkdownRenderer content={enhancedPrompt} />
-          </div>
-        )}
       </div>
     </form>
   );

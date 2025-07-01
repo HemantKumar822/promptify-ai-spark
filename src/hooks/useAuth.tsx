@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase, Profile } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -24,268 +24,119 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    let mounted = true
-
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession()
-        
-        if (!mounted) return
-        
-        if (error) {
-          console.error('Error getting session:', error)
-          setLoading(false)
-          return
-        }
-
-        setSession(session)
-        setUser(session?.user ?? null)
-        
-        if (session?.user) {
-          await fetchProfile(session.user.id)
-        }
-      } catch (error) {
-        console.error('Error in getInitialSession:', error)
-      } finally {
-        if (mounted) {
-          setLoading(false)
-        }
-      }
+  const getProfile = useCallback(async (user: User): Promise<Profile | null> => {
+    const { data: profileData, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+    
+    if (profileData) {
+      return profileData
     }
-
-    getInitialSession()
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return
-
-      console.log('Auth state changed:', event, session?.user?.email)
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116 = row not found
+      console.error("Error fetching profile:", error)
+      return null
+    }
+    
+    console.log("No profile found, creating one...")
+    const { data: newProfile, error: createError } = await supabase
+      .from('profiles')
+      .insert({
+        id: user.id,
+        full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'New User',
+        avatar_url: user.user_metadata?.avatar_url,
+      })
+      .select()
+      .single()
       
+    if (createError) {
+      toast.error("Failed to initialize your user profile.")
+      console.error("Error creating profile:", createError)
+      return null
+    }
+    
+    return newProfile
+  }, [])
+
+  useEffect(() => {
+    setLoading(true)
+
+    // 1. Get initial session and user data
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
-      
-      if (session?.user) {
-        await fetchProfile(session.user.id)
-      } else {
-        setProfile(null)
-      }
-      
-      if (mounted) {
-        setLoading(false)
-      }
+      setLoading(false) // Auth check is complete
     })
 
+    // 2. Listen for future auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session)
+        setUser(session?.user ?? null)
+      }
+    )
+
     return () => {
-      mounted = false
       subscription.unsubscribe()
     }
   }, [])
 
-  const fetchProfile = async (userId: string, retryCount = 0) => {
-    try {
-      console.log('Fetching profile for user:', userId)
-      
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
-
-      if (error && error.code === 'PGRST116') {
-        // Profile doesn't exist, create it
-        console.log('Profile not found, creating new profile')
-        await createProfile(userId)
-      } else if (error) {
-        console.error('Error fetching profile:', error)
-        
-        // Retry once if there's an error
-        if (retryCount < 1) {
-          console.log('Retrying profile fetch...')
-          setTimeout(() => fetchProfile(userId, retryCount + 1), 1000)
-          return
-        }
-      } else {
-        console.log('Profile fetched successfully:', data)
-        setProfile(data)
-      }
-    } catch (error) {
-      console.error('Error in fetchProfile:', error)
-      
-      // Retry once if there's an error
-      if (retryCount < 1) {
-        setTimeout(() => fetchProfile(userId, retryCount + 1), 1000)
-      }
-    }
-  }
-
-  const createProfile = async (userId: string) => {
-    try {
-      console.log('Creating profile for user:', userId)
-      const userData = user || session?.user
-      
-      const { data, error } = await supabase
-        .from('profiles')
-        .insert([
-          {
-            id: userId,
-            email: userData?.email || '',
-            full_name: userData?.user_metadata?.full_name || userData?.user_metadata?.name || null,
-            avatar_url: userData?.user_metadata?.avatar_url || null,
-            preferences: {},
-          },
-        ])
-        .select()
-        .single()
-
-      if (error) {
-        console.error('Error creating profile:', error)
-        
-        // If profile already exists, try to fetch it
-        if (error.code === '23505') {
-          console.log('Profile already exists, fetching...')
-          await fetchProfile(userId)
-        }
-      } else {
-        console.log('Profile created successfully:', data)
-        setProfile(data)
-      }
-    } catch (error) {
-      console.error('Error in createProfile:', error)
-    }
-  }
-
-  const signUp = async (email: string, password: string, fullName?: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-      },
-    })
-
-    if (error) {
-      toast.error(error.message)
-      return { error }
-    }
-
-    if (data.user && !data.user.email_confirmed_at) {
-      toast.success('Check your email for the confirmation link!')
-    }
-
-    return { error: null }
-  }
-
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      toast.error(error.message)
-      return { error }
-    }
-
-    toast.success('Welcome back!')
-    return { error: null }
-  }
-
-  const signInWithGoogle = async () => {
-    try {
-      console.log('Initiating Google OAuth sign-in...')
-      console.log('Current origin:', window.location.origin)
-      
-      // Get the correct redirect URL based on environment
-      const redirectTo = import.meta.env.PROD 
-        ? 'https://promptify-ai-ten.vercel.app'
-        : window.location.origin
-
-      console.log('Using redirect URL:', redirectTo)
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectTo,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      })
-
-      if (error) {
-        console.error('Google OAuth error:', error)
-        toast.error(`OAuth Error: ${error.message}`)
-        return { error }
-      }
-
-      console.log('OAuth initiated successfully:', data)
-      return { error: null }
-    } catch (error) {
-      console.error('Error in signInWithGoogle:', error)
-      toast.error('Failed to initiate Google sign-in')
-      return { error: error as AuthError }
-    }
-  }
-
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      toast.error(error.message)
+  // 3. Fetch profile whenever the user object changes
+  useEffect(() => {
+    if (user) {
+      getProfile(user).then(setProfile)
     } else {
-      toast.success('Signed out successfully!')
       setProfile(null)
     }
-  }
-
-  const updateProfile = async (updates: Partial<Profile>) => {
-    if (!user) return
-
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id)
-
-      if (error) {
-        toast.error('Failed to update profile')
-        console.error('Error updating profile:', error)
-      } else {
-        await refreshProfile()
-        toast.success('Profile updated successfully!')
-      }
-    } catch (error) {
-      console.error('Error in updateProfile:', error)
-      toast.error('Failed to update profile')
-    }
-  }
+  }, [user, getProfile])
 
   const refreshProfile = async () => {
     if (user) {
-      await fetchProfile(user.id)
+      const updatedProfile = await getProfile(user);
+      setProfile(updatedProfile);
     }
-  }
+  };
 
   const value = {
     user,
     profile,
     session,
     loading,
-    signUp,
-    signIn,
-    signInWithGoogle,
-    signOut,
-    updateProfile,
     refreshProfile,
+    signIn: async (email: string, password: string) => {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) toast.error(error.message)
+      else toast.success('Welcome back!')
+      return { error }
+    },
+    signUp: async (email: string, password: string, fullName?: string) => {
+      const { data, error } = await supabase.auth.signUp({
+        email, password, options: { data: { full_name: fullName } }
+      })
+      if (error) toast.error(error.message)
+      else if (data.user) toast.success('Check your email for a confirmation link!')
+      return { error }
+    },
+    signInWithGoogle: () => supabase.auth.signInWithOAuth({
+      provider: 'google', options: { redirectTo: window.location.origin }
+    }),
+    signOut: async () => {
+      const { error } = await supabase.auth.signOut()
+      if (error) toast.error(error.message)
+      else toast.success('Signed out successfully!')
+    },
+    updateProfile: async (updates: Partial<Profile>) => {
+      if (!user) return
+      const { data, error } = await supabase.from('profiles').update(updates).eq('id', user.id).select().single()
+      if (error) {
+        toast.error(error.message)
+      } else {
+        setProfile(data)
+        toast.success('Profile updated!')
+      }
+    },
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

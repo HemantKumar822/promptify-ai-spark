@@ -15,9 +15,10 @@ import { CopyButton } from './CopyButton';
 interface SharePromptProps {
   prompt: string;
   isImagePrompt: boolean;
+  trigger?: React.ReactNode;
 }
 
-export function SharePrompt({ prompt, isImagePrompt }: SharePromptProps) {
+export function SharePrompt({ prompt, isImagePrompt, trigger }: SharePromptProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const generateShareableText = () => {
@@ -52,18 +53,33 @@ export function SharePrompt({ prompt, isImagePrompt }: SharePromptProps) {
 
   if (!prompt) return null;
 
+  const shareButton = trigger ? (
+    React.cloneElement(trigger as React.ReactElement, {
+      onClick: (e: React.MouseEvent) => {
+        handleShare(e);
+        // Call the original onClick if it exists
+        if ((trigger as React.ReactElement).props.onClick) {
+          (trigger as React.ReactElement).props.onClick(e);
+        }
+      }
+    })
+  ) : (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8 text-muted-foreground hover:text-foreground"
+      onClick={handleShare}
+      disabled={!prompt}
+      type="button"
+    >
+      <Share className="h-4 w-4" />
+      <span className="sr-only">Share prompt</span>
+    </Button>
+  );
+
   return (
     <>
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-        onClick={handleShare}
-        type="button" // Explicitly set to button to prevent form submission
-      >
-        <Share className="h-4 w-4" />
-        <span className="sr-only">Share prompt</span>
-      </Button>
+      {shareButton}
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-md">

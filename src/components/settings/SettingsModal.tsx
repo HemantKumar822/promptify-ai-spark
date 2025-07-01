@@ -11,50 +11,11 @@ import { useUserSettings } from '@/hooks/useUserSettings'
 import { Key, User, Palette, Eye, EyeOff, TestTube, Check, X, Loader2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { decryptApiKey, saveApiKey } from '@/services/api' // Import from service
 
 interface SettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-}
-
-// Encryption utilities
-const encryptApiKey = async (apiKey: string, userSecret: string): Promise<string> => {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(apiKey)
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(userSecret.padEnd(32, '0')),
-    { name: 'AES-GCM' },
-    false,
-    ['encrypt']
-  )
-  const iv = crypto.getRandomValues(new Uint8Array(12))
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data)
-  const combined = new Uint8Array(iv.length + encrypted.byteLength)
-  combined.set(iv)
-  combined.set(new Uint8Array(encrypted), iv.length)
-  return btoa(String.fromCharCode(...combined))
-}
-
-const decryptApiKey = async (encryptedKey: string, userSecret: string): Promise<string> => {
-  try {
-    const encoder = new TextEncoder()
-    const decoder = new TextDecoder()
-    const combined = new Uint8Array(atob(encryptedKey).split('').map(char => char.charCodeAt(0)))
-    const iv = combined.slice(0, 12)
-    const encrypted = combined.slice(12)
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(userSecret.padEnd(32, '0')),
-      { name: 'AES-GCM' },
-      false,
-      ['decrypt']
-    )
-    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted)
-    return decoder.decode(decrypted)
-  } catch {
-    return ''
-  }
 }
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
@@ -73,7 +34,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [apiKeyForm, setApiKeyForm] = useState({
     openrouterKey: '',
     showKey: false,
-    saveToAccount: true,
     isValidating: false,
     isValid: null as boolean | null
   })
@@ -100,7 +60,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   const loadApiKey = async () => {
     try {
-      // First check user's encrypted API key
+      // API key is only loaded from user profile now
       if (profile?.api_key_encrypted && user?.id) {
         console.log('Loading encrypted API key from profile')
         const decryptedKey = await decryptApiKey(profile.api_key_encrypted, user.id)
@@ -108,28 +68,15 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           console.log('Successfully decrypted API key')
           setApiKeyForm(prev => ({ 
             ...prev, 
-            openrouterKey: decryptedKey,
-            saveToAccount: true 
+            openrouterKey: decryptedKey
           }))
           return
         }
       }
-      
-      // Fallback to localStorage
-      const localKey = localStorage.getItem('openrouter-api-key')
-      if (localKey && localKey.trim()) {
-        console.log('Loading API key from localStorage')
-        setApiKeyForm(prev => ({ 
-          ...prev, 
-          openrouterKey: localKey, 
-          saveToAccount: false 
-        }))
-        return
-      }
-      
-      console.log('No API key found in profile or localStorage')
+      console.log('No API key found in profile.')
     } catch (error) {
       console.error('Error loading API key:', error)
+      toast.error('Could not load your saved API key.')
     }
   }
 
@@ -180,38 +127,15 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
     setLoading(true)
     try {
-      console.log('Saving API key, saveToAccount:', apiKeyForm.saveToAccount)
-      
-      if (apiKeyForm.saveToAccount && user?.id) {
-        // Encrypt and save to account
-        console.log('Encrypting API key for user:', user.id)
-        const encryptedKey = await encryptApiKey(apiKeyForm.openrouterKey, user.id)
-        console.log('Encrypted key created, saving to profile...')
-        
-        await updateProfile({ api_key_encrypted: encryptedKey })
-        
-        // Remove from localStorage if moving to account
-        localStorage.removeItem('openrouter-api-key')
-        console.log('API key saved to account and removed from localStorage')
-        toast.success('API key saved to your account securely!')
-      } else {
-        // Save to localStorage
-        console.log('Saving API key to localStorage')
-        localStorage.setItem('openrouter-api-key', apiKeyForm.openrouterKey)
-        
-        // Remove from account if moving to local
-        if (profile?.api_key_encrypted) {
-          console.log('Removing encrypted key from account')
-          await updateProfile({ api_key_encrypted: null })
+      if (user) {
+        const success = await saveApiKey(user, apiKeyForm.openrouterKey);
+        if (success) {
+          // Optionally, refresh profile data if needed, but the key is saved.
+          await refreshProfile()
         }
-        console.log('API key saved locally')
-        toast.success('API key saved locally!')
+      } else {
+        toast.error('You must be logged in to save an API key.')
       }
-      
-      // Refresh profile to update API key detection without page reload
-      console.log('Refreshing profile...')
-      await refreshProfile()
-      console.log('Profile refreshed successfully')
     } catch (error) {
       console.error('Error saving API key:', error)
       toast.error(`Failed to save API key: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -288,94 +212,51 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           <TabsContent value="apikeys" className="space-y-6 mt-6">
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="openrouter-key">OpenRouter API Key</Label>
-                <div className="relative">
+                <Label htmlFor="openrouterKey">OpenRouter API Key</Label>
+                <div className="flex items-center gap-2">
                   <Input
-                    id="openrouter-key"
+                    id="openrouterKey"
                     type={apiKeyForm.showKey ? 'text' : 'password'}
+                    placeholder="sk-or-..."
                     value={apiKeyForm.openrouterKey}
                     onChange={(e) => setApiKeyForm(prev => ({ ...prev, openrouterKey: e.target.value, isValid: null }))}
-                    placeholder="sk-or-v1-..."
-                    className="pr-20"
+                    className={cn(
+                      'flex-grow',
+                      apiKeyForm.isValid === true && 'border-green-500',
+                      apiKeyForm.isValid === false && 'border-red-500'
+                    )}
                   />
-                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
-                    {apiKeyForm.isValidating ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : apiKeyForm.isValid === true ? (
-                      <Check className="h-4 w-4 text-green-600" />
-                    ) : apiKeyForm.isValid === false ? (
-                      <X className="h-4 w-4 text-red-600" />
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                      onClick={() => setApiKeyForm(prev => ({ ...prev, showKey: !prev.showKey }))}
-                    >
+                  <Button variant="ghost" size="icon" onClick={() => setApiKeyForm(prev => ({ ...prev, showKey: !prev.showKey }))}>
                       {apiKeyForm.showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={handleTestApiKey}
+                    disabled={apiKeyForm.isValidating || !apiKeyForm.openrouterKey.trim()}
+                  >
+                    {apiKeyForm.isValidating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <TestTube className="mr-2 h-4 w-4" />}
+                    Test
+                  </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Get your API key from{' '}
-                  <a
-                    href="https://openrouter.ai/keys"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    OpenRouter
-                  </a>
+                  Your API key is encrypted and saved to your account. It's only used to communicate with OpenRouter and is never exposed.
                 </p>
               </div>
 
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="save-to-account"
-                  checked={apiKeyForm.saveToAccount}
-                  onCheckedChange={(checked) => setApiKeyForm(prev => ({ ...prev, saveToAccount: checked }))}
-                />
-                <Label htmlFor="save-to-account" className="text-sm">
-                  Save to account (encrypted) - sync across devices
-                </Label>
-              </div>
-              
-              {!apiKeyForm.saveToAccount && (
-                <p className="text-xs text-muted-foreground bg-orange-50 dark:bg-orange-950/20 p-2 rounded">
-                  ⚠️ Saving locally means the key won't sync to other devices
-                </p>
-              )}
-
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleTestApiKey}
-                  variant="outline"
-                  disabled={!apiKeyForm.openrouterKey.trim() || apiKeyForm.isValidating}
-                  className="flex-1"
-                >
-                  <TestTube className="mr-2 h-4 w-4" />
-                  Test Key
-                </Button>
-                <Button
-                  onClick={handleApiKeySave}
-                  disabled={loading || !apiKeyForm.openrouterKey.trim()}
-                  className="flex-1"
-                >
+              <Button onClick={handleApiKeySave} disabled={loading} className="w-full">
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Saving...
                     </>
                   ) : (
-                    'Save Key'
+                  'Save API Key'
                   )}
                 </Button>
-              </div>
             </div>
           </TabsContent>
 
-          <TabsContent value="preferences" className="space-y-6 mt-6">
+          <TabsContent value="preferences" className="space-y-8 mt-6">
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Default Enhancement Mode</Label>

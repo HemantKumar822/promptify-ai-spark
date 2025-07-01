@@ -21,32 +21,21 @@ interface UserMenuProps {
 export function UserMenu({ onOpenSettings, className }: UserMenuProps) {
   const { user, profile, loading, signOut, refreshProfile } = useAuth()
 
-  // Don't render if still loading auth
+  // Show a loading skeleton while the user session is being restored.
   if (loading) {
-    console.log('UserMenu: Auth still loading')
-    return (
-      <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" />
-    )
+    return <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" />;
   }
 
-  // Don't render if no user
+  // If there is no user after loading, the user is not logged in.
   if (!user) {
-    console.log('UserMenu: No user found')
-    return null
+    // In a real app, you might return a <SignInButton /> here.
+    // For now, returning null keeps the header clean.
+    return null;
   }
 
-  console.log('UserMenu: Rendering for user:', user.email, 'Profile:', profile)
-
-  // Auto-refresh profile if missing after a delay
-  React.useEffect(() => {
-    if (user && !profile && !loading) {
-      console.log('UserMenu: Profile missing, refreshing...')
-      const timer = setTimeout(() => {
-        refreshProfile()
-      }, 2000)
-      return () => clearTimeout(timer)
-    }
-  }, [user, profile, loading, refreshProfile])
+  // At this point, loading is false and we have a user.
+  // We can now safely render the user menu.
+  // The profile might still be loading for a frame, but we can handle that gracefully.
 
   const getInitials = (name: string | null | undefined, email: string) => {
     if (name) {
@@ -57,11 +46,16 @@ export function UserMenu({ onOpenSettings, className }: UserMenuProps) {
         .toUpperCase()
         .slice(0, 2)
     }
-    return email.slice(0, 2).toUpperCase()
+    // Fallback to email if name is not available
+    if (email) {
+      return email.slice(0, 2).toUpperCase();
+    }
+    return '??'; // Ultimate fallback
   }
 
   const displayName = profile?.full_name || user.email?.split('@')[0] || 'User'
   const initials = getInitials(profile?.full_name, user.email || '')
+  const avatarUrl = profile?.avatar_url;
 
   return (
     <DropdownMenu>
@@ -74,11 +68,11 @@ export function UserMenu({ onOpenSettings, className }: UserMenuProps) {
           )}
         >
           <Avatar className="h-9 w-9">
-            <AvatarImage 
-              src={profile?.avatar_url || user.user_metadata?.avatar_url} 
+            {avatarUrl && <AvatarImage 
+              src={avatarUrl} 
               alt={displayName}
               className="object-cover"
-            />
+            />}
             <AvatarFallback className="user-avatar-fallback text-sm font-medium bg-gradient-to-br from-blue-400 to-purple-500 text-white">
               {initials}
             </AvatarFallback>

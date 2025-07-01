@@ -1,86 +1,237 @@
-
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { App, AuthChangeEvent, Session, User } from '@supabase/supabase-js'
+import { v4 as uuidv4 } from 'uuid'
 
 interface EnhancePromptResponse {
   enhancedPrompt: string;
   error?: string;
 }
 
-// Get API key from user account or localStorage
-const getApiKey = async (): Promise<string> => {
+// #region Encryption Utilities
+// These are designed to securely encrypt/decrypt user API keys.
+// The key is derived from the user's ID using SHA-256, ensuring a secure and consistent key.
+
+const deriveKey = async (userSecret: string): Promise<CryptoKey> => {
+  const encoder = new TextEncoder()
+  const secretData = encoder.encode(userSecret)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', secretData)
+  return crypto.subtle.importKey('raw', hashBuffer, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+}
+
+export const encryptApiKey = async (apiKey: string, userSecret: string): Promise<string> => {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(apiKey)
+  const key = await deriveKey(userSecret)
+  const iv = crypto.getRandomValues(new Uint8Array(12)) // NIST recommended 96-bits IV for GCM
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data)
+  const combined = new Uint8Array(iv.length + encrypted.byteLength)
+  combined.set(iv)
+  combined.set(new Uint8Array(encrypted), iv.length)
+  return btoa(String.fromCharCode(...combined))
+}
+
+export const decryptApiKey = async (encryptedKey: string, userSecret: string): Promise<string> => {
   try {
-    // Try to get from user's account first
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError) {
-      console.error('Error getting user:', userError);
+    const decoder = new TextDecoder()
+    const combined = new Uint8Array(atob(encryptedKey).split('').map(char => char.charCodeAt(0)))
+    const iv = combined.slice(0, 12)
+    const encrypted = combined.slice(12)
+    const key = await deriveKey(userSecret)
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted)
+    return decoder.decode(decrypted)
+  } catch (error) {
+    console.error('Failed to decrypt API key:', error)
+    return ''
+  }
+}
+
+// #endregion
+
+// #region API Key Management
+
+export const saveApiKey = async (user: User, apiKey: string): Promise<boolean> => {
+  if (!user) {
+    toast.error('You must be logged in to save an API key.');
+    return false;
+  }
+
+  try {
+    const encryptedKey = await encryptApiKey(apiKey, user.id);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ api_key_encrypted: encryptedKey, updated_at: new Date().toISOString() })
+      .eq('id', user.id);
+
+    if (error) {
+      console.error('Error saving API key:', error);
+      toast.error('Failed to save your API key.');
+      return false;
     }
-    
-    if (user) {
-      console.log('Checking for encrypted API key for user:', user.id);
-      const { data: profile, error: profileError } = await supabase
+
+    toast.success('Your API key has been saved securely.');
+    return true;
+  } catch (error) {
+    console.error('Error in saveApiKey:', error);
+    toast.error('An unexpected error occurred while saving your API key.');
+    return false;
+  }
+};
+
+export const getApiKey = async (user: User | null): Promise<string | null> => {
+  if (!user) {
+    return null;
+  }
+  
+  try {
+    const { data: profile, error } = await supabase
         .from('profiles')
         .select('api_key_encrypted')
         .eq('id', user.id)
         .single();
       
-      if (profileError) {
-        console.error('Error fetching profile:', profileError);
+    if (error) {
+      console.error('Error fetching profile for API key:', error);
+      return null;
       }
       
       if (profile?.api_key_encrypted) {
-        try {
-          console.log('Found encrypted API key, decrypting...');
-          // Decrypt the API key
           const decryptedKey = await decryptApiKey(profile.api_key_encrypted, user.id);
-          if (decryptedKey && decryptedKey.trim()) {
-            console.log('Successfully decrypted API key');
+      if (decryptedKey) {
             return decryptedKey;
-          }
-        } catch (error) {
-          console.error('Error decrypting API key:', error);
-        }
       }
     }
     
-    // Fallback to localStorage
-    console.log('Checking localStorage for API key...');
-    const localKey = localStorage.getItem('openrouter-api-key');
-    if (localKey && localKey.trim()) {
-      console.log('Found API key in localStorage');
-      return localKey;
-    }
-    
-    console.log('No API key found in profile or localStorage');
-    return "";
+    return null; // No key found or decryption failed
   } catch (error) {
     console.error('Error in getApiKey:', error);
-    return "";
+    return null;
   }
 };
 
-// Decrypt function (same as in SettingsModal)
-const decryptApiKey = async (encryptedKey: string, userSecret: string): Promise<string> => {
+// #endregion
+
+// #region Prompt History Management
+
+export interface HistoryPrompt {
+  id: string;
+  input_prompt: string;
+  enhanced_prompt: string;
+  is_image_prompt: boolean;
+  user_id: string;
+  created_at: string;
+  enhancement_mode: string;
+}
+
+export const getPromptHistory = async (userId: string): Promise<HistoryPrompt[]> => {
+  if (!userId) return [];
+  
   try {
-    const encoder = new TextEncoder()
-    const decoder = new TextDecoder()
-    const combined = new Uint8Array(atob(encryptedKey).split('').map(char => char.charCodeAt(0)))
-    const iv = combined.slice(0, 12)
-    const encrypted = combined.slice(12)
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(userSecret.padEnd(32, '0')),
-      { name: 'AES-GCM' },
-      false,
-      ['decrypt']
-    )
-    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encrypted)
-    return decoder.decode(decrypted)
-  } catch {
-    return ''
+    const { data, error } = await supabase
+      .from('prompt_history')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+      
+    if (error) {
+      console.error('Error fetching prompt history:', error);
+      toast.error('Could not load your prompt history.');
+      return [];
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error in getPromptHistory:', error);
+    toast.error('An unexpected error occurred while fetching history.');
+    return [];
   }
 };
+
+export const savePromptToHistory = async (prompt: Omit<HistoryPrompt, 'id' | 'created_at'>): Promise<HistoryPrompt | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('prompt_history')
+      .insert([prompt])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving prompt to history:', error);
+      toast.error('Failed to save prompt to your history.');
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in savePromptToHistory:', error);
+    toast.error('An unexpected error occurred while saving prompt.');
+    return null;
+  }
+};
+
+// #endregion
+
+// #region Saved Prompts Management
+
+export interface SavedPromptDb {
+  id: string;
+  user_id: string;
+  text: string;
+  is_image_prompt: boolean;
+  created_at: string;
+}
+
+export const getSavedPrompts = async (userId: string): Promise<SavedPromptDb[]> => {
+  if (!userId) return [];
+  try {
+    const { data, error } = await supabase
+      .from('saved_prompts')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching saved prompts:', error);
+    toast.error('Could not load your saved prompts.');
+    return [];
+  }
+};
+
+export const savePrompt = async (prompt: Omit<SavedPromptDb, 'id' | 'created_at'>): Promise<SavedPromptDb | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('saved_prompts')
+      .insert([prompt])
+      .select()
+      .single();
+    if (error) throw error;
+    toast.success('Prompt saved to your collection!');
+    return data;
+  } catch (error) {
+    console.error('Error saving prompt:', error);
+    toast.error('Failed to save prompt.');
+    return null;
+  }
+};
+
+export const unsavePrompt = async (promptText: string, userId: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('saved_prompts')
+      .delete()
+      .eq('text', promptText)
+      .eq('user_id', userId);
+    if (error) throw error;
+    toast.success('Prompt removed from your collection.');
+  } catch (error) {
+    console.error('Error unsaving prompt:', error);
+    toast.error('Failed to unsave prompt.');
+  }
+};
+
+// #endregion
 
 // System prompts for different enhancement modes
 const TEXT_SYSTEM_PROMPT = `You are an expert Prompt Enhancer AI trained to rewrite and upgrade user prompts to make them more powerful, clear, and effective for use with large language models like ChatGPT, Claude, or Gemini.
@@ -159,42 +310,52 @@ Example:
 Raw: "A futuristic city"  
 Enhanced: "A futuristic cyberpunk cityscape at night, illuminated by neon lights, with flying cars in the sky, reflective wet streets, dense fog, and glowing skyscrapers — digital art, wide-angle perspective, ultra-detailed."`;
 
-// Check if API key is available
-export const hasApiKey = async (): Promise<boolean> => {
-  const apiKey = await getApiKey();
-  return apiKey.trim() !== "";
-};
-
 // Enhanced API call for both text and image prompts
-export const enhancePrompt = async (prompt: string, isImageMode: boolean = false, enhancementMode: string = "professional"): Promise<EnhancePromptResponse> => {
-  // Display a loading message
+export const enhancePrompt = async (prompt: string, user: User | null, isImageMode: boolean = false, enhancementMode: string = "professional"): Promise<EnhancePromptResponse> => {
   const loadingToast = toast.loading(`Enhancing your ${isImageMode ? "image" : "text"} prompt...`);
   
+  if (!user) {
+    // For logged-out users, use the simulated enhancement
+    const enhancedPrompt = simulateEnhancement(prompt);
+    toast.dismiss(loadingToast);
+    toast.success("Prompt enhanced locally!");
+    return { enhancedPrompt };
+  }
+  
+  // For logged-in users, try the API call
   try {
-    // Use OpenRouter API for all prompt enhancements
-    const enhancedPrompt = await callOpenRouterAPI(prompt, isImageMode, enhancementMode);
+    const enhancedPrompt = await callOpenRouterAPI(prompt, user, isImageMode, enhancementMode);
+
+    if (user) {
+      await savePromptToHistory({
+        user_id: user.id,
+        input_prompt: prompt,
+        enhanced_prompt: enhancedPrompt,
+        is_image_prompt: isImageMode,
+        enhancement_mode: enhancementMode
+      });
+    }
+
     toast.dismiss(loadingToast);
     toast.success(`${isImageMode ? "Image" : "Text"} prompt enhanced successfully!`);
     return { enhancedPrompt };
-  } catch (error) {
-    // Handle errors
+  } catch (error: any) {
+    console.warn(`API call failed: ${error.message}. Falling back to simulation.`);
+    // Fallback to simulation if API call fails
+    const enhancedPrompt = simulateEnhancement(prompt);
     toast.dismiss(loadingToast);
-    toast.error("Failed to enhance prompt. Please try again.");
-    
-    return { 
-      enhancedPrompt: "", 
-      error: error instanceof Error ? error.message : "Unknown error occurred" 
-    };
+    toast.info("API key issue. Falling back to local enhancement.");
+    return { enhancedPrompt };
   }
 };
 
 // Call to OpenRouter API for all prompt enhancements
-async function callOpenRouterAPI(prompt: string, isImagePrompt: boolean = false, enhancementMode: string = "professional"): Promise<string> {
+async function callOpenRouterAPI(prompt: string, user: User | null, isImagePrompt: boolean = false, enhancementMode: string = "professional"): Promise<string> {
   try {
     // Get the user's API key
-    const apiKey = await getApiKey();
+    const apiKey = await getApiKey(user);
     
-    if (!apiKey || apiKey.trim() === "") {
+    if (!apiKey) {
       throw new Error("🔑 No API key found! Please add your OpenRouter API key in Settings → API Keys to continue.");
     }
     
@@ -212,11 +373,11 @@ async function callOpenRouterAPI(prompt: string, isImagePrompt: boolean = false,
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
-        "HTTP-Referer": window.location.origin,
-        "X-Title": "AI Prompt Engineer"
+        "HTTP-Referer": "https://promptify-ai-spark.com", // Generic Referer
+        "X-Title": "Promptify AI Spark"
       },
       body: JSON.stringify({
-        model: "deepseek/deepseek-chat-v3-0324:free",
+        model: "openai/gpt-4o", // Using a more powerful model
         messages: [
           {
             role: "system",
