@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/hooks/useAuth'
-import { Key, User, Palette, Eye, EyeOff, TestTube, Check, X, Loader2 } from 'lucide-react'
+import { useUserSettings } from '@/hooks/useUserSettings'
+import { Key, User, Palette, Eye, EyeOff, TestTube, Check, X, Loader2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -57,7 +58,8 @@ const decryptApiKey = async (encryptedKey: string, userSecret: string): Promise<
 }
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
-  const { user, profile, updateProfile } = useAuth()
+  const { user, profile, updateProfile, refreshProfile } = useAuth()
+  const { settings, updateSettings, loading: settingsLoading } = useUserSettings()
   const [activeTab, setActiveTab] = useState('profile')
   const [loading, setLoading] = useState(false)
   
@@ -76,11 +78,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     isValid: null as boolean | null
   })
 
-  // Preferences
+  // Preferences (using settings from hook)
   const [preferences, setPreferences] = useState({
-    defaultEnhancementMode: 'professional',
-    autoSaveHistory: true,
-    theme: 'light'
+    defaultEnhancementMode: settings.defaultEnhancementMode,
+    autoSaveHistory: settings.autoSaveHistory,
+    theme: settings.theme
   })
 
   // Load user data when modal opens
@@ -178,6 +180,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         }
         toast.success('API key saved locally!')
       }
+      
+      // Trigger a page refresh to update API key detection
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
       console.error('Error saving API key:', error)
       toast.error('Failed to save API key')
@@ -345,11 +350,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Default Enhancement Mode</Label>
-                <select
-                  value={preferences.defaultEnhancementMode}
-                  onChange={(e) => setPreferences(prev => ({ ...prev, defaultEnhancementMode: e.target.value }))}
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                >
+                                 <select
+                   value={preferences.defaultEnhancementMode}
+                   onChange={(e) => setPreferences(prev => ({ ...prev, defaultEnhancementMode: e.target.value as any }))}
+                   className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                 >
                   <option value="professional">Professional</option>
                   <option value="creative">Creative</option>
                   <option value="academic">Academic</option>
@@ -368,8 +373,15 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <Label htmlFor="auto-save">Automatically save prompt history</Label>
               </div>
 
-              <Button onClick={handleProfileUpdate} disabled={loading} className="w-full">
-                {loading ? (
+              <Button 
+                onClick={async () => {
+                  await updateSettings(preferences);
+                  await refreshProfile();
+                }} 
+                disabled={settingsLoading} 
+                className="w-full"
+              >
+                {settingsLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Saving...

@@ -15,18 +15,56 @@ import { PromptHistory, HistoryPrompt } from '@/components/PromptHistory';
 import { RandomPrompt } from '@/components/RandomPrompt';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { StyleSelector } from '@/components/StyleSelector';
+import { ApiKeyNotice } from '@/components/ApiKeyNotice';
+import { useAuth } from '@/hooks/useAuth';
+import { useUserSettings, EnhancementMode } from '@/hooks/useUserSettings';
+import { supabase } from '@/lib/supabase';
 
-type EnhancementMode = "professional" | "creative" | "academic" | "technical" | "marketing" | "storytelling";
+interface PromptFormProps {
+  onOpenSettings?: () => void
+  onOpenAuth?: () => void
+}
 
-export function PromptForm() {
+export function PromptForm({ onOpenSettings, onOpenAuth }: PromptFormProps) {
+  const { user, profile } = useAuth()
+  const { settings, updateSettings } = useUserSettings()
+  
   const [inputPrompt, setInputPrompt] = useState('');
   const [enhancedPrompt, setEnhancedPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isImageMode, setIsImageMode] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isUsingMarkdown, setIsUsingMarkdown] = useState(true);
-  const [enhancementMode, setEnhancementMode] = useState<EnhancementMode>("professional");
+  const [enhancementMode, setEnhancementMode] = useState<EnhancementMode>(settings.defaultEnhancementMode);
+  const [hasApiKey, setHasApiKey] = useState(false);
   
+  // Check API key availability
+  const checkApiKey = async () => {
+    try {
+      // Check user account first
+      if (user && profile?.api_key_encrypted) {
+        setHasApiKey(true)
+        return
+      }
+      
+      // Check localStorage
+      const localKey = localStorage.getItem('openrouter-api-key')
+      setHasApiKey(!!localKey && localKey.trim() !== '')
+    } catch (error) {
+      setHasApiKey(false)
+    }
+  }
+
+  // Update enhancement mode when settings change
+  useEffect(() => {
+    setEnhancementMode(settings.defaultEnhancementMode)
+  }, [settings.defaultEnhancementMode])
+
+  // Check API key on mount and when user/profile changes
+  useEffect(() => {
+    checkApiKey()
+  }, [user, profile])
+
   // Check if the current prompt is saved
   useEffect(() => {
     if (!enhancedPrompt) {
@@ -63,6 +101,18 @@ export function PromptForm() {
     
     if (!inputPrompt.trim()) return;
     
+    // Check if user has API key
+    if (!hasApiKey) {
+      toast.error("🔑 Please add your OpenRouter API key first!", {
+        description: user ? "Go to Settings → API Keys" : "Sign in to save your API key securely",
+        action: {
+          label: user ? "Open Settings" : "Sign In",
+          onClick: user ? onOpenSettings : onOpenAuth
+        }
+      });
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
@@ -76,7 +126,23 @@ export function PromptForm() {
         const enhancedText = response.enhancedPrompt;
         setEnhancedPrompt(enhancedText);
         
-        // Add to prompt history
+        // Save to database if user is signed in
+        if (user && settings.autoSaveHistory) {
+          try {
+            await supabase.from('user_prompts').insert({
+              user_id: user.id,
+              input_prompt: inputPrompt,
+              enhanced_prompt: enhancedText,
+              is_image_prompt: isImageMode,
+              enhancement_mode: enhancementMode,
+              is_saved: false
+            });
+          } catch (error) {
+            console.warn('Failed to save to database:', error);
+          }
+        }
+        
+        // Add to local history as fallback
         const newHistoryItem: HistoryPrompt = {
           id: uuidv4(),
           inputPrompt,
@@ -88,10 +154,16 @@ export function PromptForm() {
         const history = JSON.parse(localStorage.getItem('promptify-history') || '[]');
         const updatedHistory = [newHistoryItem, ...history].slice(0, 10); // Keep only last 10
         localStorage.setItem('promptify-history', JSON.stringify(updatedHistory));
+        
+        // Update user's default mode if they've changed it
+        if (enhancementMode !== settings.defaultEnhancementMode) {
+          await updateSettings({ defaultEnhancementMode: enhancementMode });
+        }
       }
     } catch (error) {
       console.error("Error enhancing prompt:", error);
-      toast.error("An error occurred. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "An error occurred. Please try again.";
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -143,6 +215,11 @@ export function PromptForm() {
   
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-4xl mx-auto space-y-4 sm:space-y-6 px-2 sm:px-0">
+      {/* API Key Notice */}
+      {!hasApiKey && (
+        <ApiKeyNotice onOpenSettings={onOpenSettings} onOpenAuth={onOpenAuth} />
+      )}
+      
       <div className="space-y-2">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
           <label htmlFor="inputPrompt" className="text-sm font-medium">
@@ -205,14 +282,19 @@ export function PromptForm() {
           className={cn(
             "px-6 sm:px-8 py-5 sm:py-6 text-sm sm:text-base promptify-gradient hover:opacity-90 transition-opacity w-full sm:w-auto",
             isLoading ? "" : "animate-pulse-subtle",
-            isImageMode && "from-purple-600 to-indigo-600"
+            isImageMode && "from-purple-600 to-indigo-600",
+            !hasApiKey && "opacity-50 cursor-not-allowed"
           )}
-          disabled={!inputPrompt.trim() || isLoading}
+          disabled={!inputPrompt.trim() || isLoading || !hasApiKey}
         >
           {isLoading ? (
             <span className="flex items-center gap-2">
               <Loader2 size={18} className="animate-spin" />
               Enhancing...
+            </span>
+          ) : !hasApiKey ? (
+            <span className="flex items-center gap-2">
+              🔑 API Key Required
             </span>
           ) : (
             <>

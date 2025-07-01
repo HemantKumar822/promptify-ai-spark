@@ -34,8 +34,8 @@ const getApiKey = async (): Promise<string> => {
   const localKey = localStorage.getItem('openrouter-api-key');
   if (localKey) return localKey;
   
-  // Final fallback to default key
-  return import.meta.env.VITE_DEFAULT_OPENROUTER_KEY || "";
+  // No default key - user must provide their own
+  return "";
 };
 
 // Decrypt function (same as in SettingsModal)
@@ -166,8 +166,8 @@ async function callOpenRouterAPI(prompt: string, isImagePrompt: boolean = false,
     // Get the user's API key
     const apiKey = await getApiKey();
     
-    if (!apiKey) {
-      throw new Error("No API key available. Please add your OpenRouter API key in Settings.");
+    if (!apiKey || apiKey.trim() === "") {
+      throw new Error("🔑 No API key found! Please add your OpenRouter API key in Settings → API Keys to continue.");
     }
     
     // Select the appropriate system prompt based on the mode

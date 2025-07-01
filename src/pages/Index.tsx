@@ -56,7 +56,10 @@ const Index = () => {
             </div>
             
             <div className="animate-scale-in">
-              <PromptForm />
+              <PromptForm 
+                onOpenSettings={() => setShowSettingsModal(true)}
+                onOpenAuth={() => setShowAuthModal(true)}
+              />
             </div>
           </div>
         </main>
