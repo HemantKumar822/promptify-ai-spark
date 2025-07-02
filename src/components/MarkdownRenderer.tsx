@@ -15,7 +15,7 @@ type CodeProps = React.ClassAttributes<HTMLElement> &
   React.HTMLAttributes<HTMLElement> & {
     inline?: boolean;
     className?: string;
-    node?: any; // Add the missing node property
+    node?: unknown; // Add the missing node property
   };
 
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {

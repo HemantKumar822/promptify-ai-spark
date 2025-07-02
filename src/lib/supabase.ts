@@ -27,7 +27,7 @@ export interface Profile {
   full_name: string | null
   avatar_url: string | null
   api_key_encrypted: string | null
-  preferences: Record<string, any>
+  preferences: Record<string, unknown>;
   created_at: string
   updated_at: string
 }
@@ -48,6 +48,6 @@ export interface UserSettings {
   theme: 'light' | 'dark'
   default_enhancement_mode: string
   auto_save_history: boolean
-  settings: Record<string, any>
+  settings: Record<string, unknown>;
   updated_at: string
 }

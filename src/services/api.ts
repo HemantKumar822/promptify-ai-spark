@@ -339,7 +339,7 @@ export const enhancePrompt = async (prompt: string, user: User | null, isImageMo
     toast.dismiss(loadingToast);
     toast.success(`${isImageMode ? "Image" : "Text"} prompt enhanced successfully!`);
     return { enhancedPrompt };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.warn(`API call failed: ${error.message}. Falling back to simulation.`);
     // Fallback to simulation if API call fails
     const enhancedPrompt = simulateEnhancement(prompt);

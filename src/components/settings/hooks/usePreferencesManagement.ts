@@ -46,7 +46,7 @@ export const usePreferencesManagement = (initialState: PreferencesFormData) => {
     updatePreferences({ [key]: newValue });
   }, [preferences, updatePreferences]);
 
-  const updatePreference = useCallback((key: keyof PreferencesFormData, value: any) => {
+  const updatePreference = useCallback((key: keyof PreferencesFormData, value: string | boolean) => {
     setPreferences(prev => ({
       ...prev,
       [key]: value
